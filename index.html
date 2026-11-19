@@ -551,7 +551,13 @@
     } catch (e) {
       state.loadError = true;
       state.loaded = true;
-      flash("Data belum bisa dimuat. Periksa koneksi internet atau pengaturan Supabase.", "err");
+      console.error("Gagal memuat data:", e);
+      var code = e && e.code ? String(e.code) : "";
+      var hint = "Periksa koneksi internet atau pengaturan Supabase.";
+      if (code === "42501") hint = "Izin akses tabel belum diberikan. Jalankan ulang supabase-setup.sql versi terbaru di SQL Editor.";
+      else if (code === "42P01" || code === "PGRST205") hint = "Tabel belum dibuat. Jalankan supabase-setup.sql di SQL Editor.";
+      var detail = e && (e.code || e.message) ? " [" + [e.code, e.message].filter(Boolean).join(": ") + "]" : "";
+      flash("Data belum bisa dimuat. " + hint + detail, "err");
     }
     renderAll();
   }
