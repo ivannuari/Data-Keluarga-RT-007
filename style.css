@@ -239,3 +239,23 @@ textarea:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 
   .post::before, .monthmark::before { left: -24px; }
   .postbody { padding: 14px 14px 16px; }
 }
+
+/* ===== Data warga ===== */
+.fl { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+table.wide { min-width: 900px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { display: inline-block; font-size: 0.74rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.chip.alt { background: var(--soft); border-color: var(--accent-text); color: var(--accent-text); }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
+.filters .range { display: flex; gap: 6px; }
+.filters .range input { min-width: 0; }
+.agechips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chipbtn {
+  font: inherit; font-size: 0.88rem; font-weight: 600; min-height: 36px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+.chipbtn:hover { background: var(--surface-2); }
+.chipbtn .n { margin-left: 6px; font-weight: 500; color: var(--muted); }
+.chipbtn[aria-pressed="true"] { background: var(--soft); border-color: var(--accent-text); color: var(--accent-text); }
+.chipbtn[aria-pressed="true"] .n { color: inherit; }
+.chipbtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }

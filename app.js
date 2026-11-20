@@ -15,7 +15,9 @@
     loaded: false, loadError: false,
     admin: false, email: "", signedIn: false,
     editing: null, confirmDel: null, saving: false, opener: null,
-    berita: [], bLoaded: false, bError: null, bLimit: 8, bOpen: {}, bEdit: null, bConfirmDel: null, bSaving: false
+    berita: [], bLoaded: false, bError: null, bLimit: 8, bOpen: {}, bEdit: null, bConfirmDel: null, bSaving: false,
+    warga: [], wLoaded: false, wError: null, wEdit: null, wConfirmDel: null, wSaving: false, wLimit: 100,
+    wf: { q: "", umur: "", min: "", max: "", gang: "", mukim: "", rumah: "", ktp: "", sort: "nama" }
   };
 
   // ---------- helpers ----------
@@ -209,7 +211,7 @@
     renderSummary(c);
     renderTable(c);
     renderPihakList();
-    $("#exports").hidden = !(state.loaded && !state.loadError);
+    $("#exportbar").hidden = !(state.loaded && !state.loadError);
     $("#btn-pdf").hidden = !(window.jspdf && window.jspdf.jsPDF);
   }
   function applyAuthUi() {
@@ -295,6 +297,8 @@
       var r = await sb.rpc("is_admin");
       state.admin = r.data === true;
     }
+    // Data warga hanya dimuat untuk pengurus. Pengunjung biasa tidak pernah meminta tabel ini.
+    if (state.admin) { if (!state.wLoaded) loadWarga(); } else { clearWarga(); }
     applyAuthUi();
     fillSettings();
     renderAll();
@@ -548,16 +552,18 @@
   // ---------- tab ----------
   var TABS = [
     { id: "beranda", label: "Beranda" },
-    { id: "keuangan", label: "Keuangan" }
+    { id: "keuangan", label: "Keuangan" },
+    { id: "warga", label: "Data Warga", admin: true }
   ];
+  function tabsFor() { return TABS.filter(function (t) { return !t.admin || state.admin; }); }
   function activeTab() {
     var t = (location.hash || "").slice(1);
-    return TABS.some(function (x) { return x.id === t; }) ? t : "beranda";
+    return tabsFor().some(function (x) { return x.id === t; }) ? t : "beranda";
   }
   function renderTabs(cur) {
     var nav = $("#tabs");
     nav.textContent = "";
-    TABS.forEach(function (t) {
+    tabsFor().forEach(function (t) {
       nav.append(h("button", {
         type: "button", class: "tab", role: "tab", "aria-selected": String(t.id === cur),
         onclick: function () { if (location.hash === "#" + t.id) renderAll(); else location.hash = t.id; }
@@ -568,7 +574,9 @@
     var cur = activeTab();
     renderTabs(cur);
     TABS.forEach(function (t) { $("#tab-" + t.id).hidden = t.id !== cur; });
-    if (cur === "keuangan") renderFinance(); else renderBerita();
+    if (cur === "keuangan") renderFinance();
+    else if (cur === "warga") renderWarga();
+    else renderBerita();
   }
 
   // ======================================================================
@@ -807,6 +815,378 @@
     }
   }
 
+
+  // ======================================================================
+  // DATA WARGA (hanya pengurus)
+  // ======================================================================
+  var AGE = [
+    { id: "balita", label: "Balita", range: "0-4 th" },
+    { id: "anak", label: "Anak", range: "5-12 th" },
+    { id: "remaja", label: "Remaja", range: "13-17 th" },
+    { id: "dewasa", label: "Dewasa", range: "18-59 th" },
+    { id: "lansia", label: "Lansia", range: "60+ th" }
+  ];
+  function ageInfo(id) { return AGE.filter(function (g) { return g.id === id; })[0]; }
+  function ageOf(iso) {
+    if (!iso) return null;
+    var p = iso.split("-").map(Number), n = new Date();
+    var a = n.getFullYear() - p[0];
+    var m = n.getMonth() + 1 - p[1];
+    if (m < 0 || (m === 0 && n.getDate() < p[2])) a--;
+    return a < 0 ? null : a;
+  }
+  function ageGroup(a) {
+    if (a == null) return "x";
+    if (a < 5) return "balita";
+    if (a <= 12) return "anak";
+    if (a <= 17) return "remaja";
+    if (a < 60) return "dewasa";
+    return "lansia";
+  }
+  // Samakan huruf besar/kecil nama gang dengan yang sudah ada, supaya
+  // "gang mawar" dan "Gang Mawar" tidak dihitung dua gang berbeda.
+  function canonGang(v) {
+    v = v.trim().replace(/\s+/g, " ");
+    var k = v.toLowerCase();
+    for (var i = 0; i < state.warga.length; i++) {
+      var g = state.warga[i].gang;
+      if (g && g.toLowerCase() === k) return g;
+    }
+    return v;
+  }
+
+  async function fetchWarga() {
+    var out = [], from = 0, size = 1000;
+    for (;;) {
+      var r = await sb.from("warga").select("*").order("nama", { ascending: true }).range(from, from + size - 1);
+      if (r.error) throw r.error;
+      out = out.concat(r.data);
+      if (r.data.length < size) break;
+      from += size;
+    }
+    return out;
+  }
+  async function loadWarga() {
+    if (!sb || !state.admin) return;
+    try {
+      state.warga = await fetchWarga();
+      state.wError = null;
+    } catch (e) {
+      console.error("Gagal memuat data warga:", e);
+      state.wError = e || {};
+    }
+    state.wLoaded = true;
+    renderAll();
+  }
+  function clearWarga() {
+    state.warga = []; state.wLoaded = false; state.wError = null; state.wEdit = null; state.wConfirmDel = null;
+    resetWForm(false);
+    $("#wPanel").hidden = true;
+    $("#w-table").textContent = "";
+    $("#w-agechips").textContent = "";
+  }
+  function wErrText(e) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "42501") return "Izin akses tabel warga belum diberikan. Jalankan supabase-warga.sql di SQL Editor Supabase.";
+    if (c === "42P01" || c === "PGRST205") return "Tabel warga belum dibuat. Jalankan supabase-warga.sql di SQL Editor Supabase.";
+    return "Data warga belum bisa dimuat. " + (e && e.message ? "[" + (c ? c + ": " : "") + e.message + "]" : "Periksa koneksi internet.");
+  }
+
+  function filtered() {
+    var f = state.wf, q = f.q.trim().toLowerCase();
+    var min = f.min === "" ? null : Number(f.min), max = f.max === "" ? null : Number(f.max);
+    var list = state.warga.filter(function (w) {
+      var a = ageOf(w.tanggal_lahir);
+      if (q && (w.nama || "").toLowerCase().indexOf(q) < 0 && (w.no_telepon || "").indexOf(q) < 0 &&
+          (w.no_kk || "").indexOf(q) < 0 && (w.no_ktp || "").indexOf(q) < 0) return false;
+      if (f.umur && ageGroup(a) !== f.umur) return false;
+      if (min != null && (a == null || a < min)) return false;
+      if (max != null && (a == null || a > max)) return false;
+      if (f.gang && (w.gang || "").toLowerCase() !== f.gang) return false;
+      if (f.mukim && w.status_mukim !== f.mukim) return false;
+      if (f.rumah && w.status_rumah !== f.rumah) return false;
+      if (f.ktp && w.domisili_ktp !== f.ktp) return false;
+      return true;
+    });
+    var s = f.sort;
+    list.sort(function (a, b) {
+      if (s === "gang") return ncmp(a.gang, b.gang) || ncmp(a.no_rumah, b.no_rumah) || ncmp(a.nama, b.nama);
+      if (s === "tua" || s === "muda") {
+        var x = ageOf(a.tanggal_lahir), y = ageOf(b.tanggal_lahir);
+        if (x == null && y == null) return ncmp(a.nama, b.nama);
+        if (x == null) return 1;
+        if (y == null) return -1;
+        return (s === "tua" ? y - x : x - y) || ncmp(a.nama, b.nama);
+      }
+      return ncmp(a.nama, b.nama);
+    });
+    return list;
+  }
+
+  function renderAgeChips() {
+    var box = $("#w-agechips");
+    box.textContent = "";
+    var count = { balita: 0, anak: 0, remaja: 0, dewasa: 0, lansia: 0 };
+    state.warga.forEach(function (w) { var g = ageGroup(ageOf(w.tanggal_lahir)); if (count[g] != null) count[g]++; });
+    function chip(id, label, n) {
+      box.append(h("button", {
+        type: "button", class: "chipbtn", "aria-pressed": String(state.wf.umur === id),
+        onclick: function () {
+          state.wf.umur = state.wf.umur === id ? "" : id;
+          state.wf.min = ""; state.wf.max = ""; $("#wf-min").value = ""; $("#wf-max").value = "";
+          state.wLimit = 100;
+          renderAgeChips(); renderWargaList();
+        }
+      }, label, h("span", { class: "n" }, String(n))));
+    }
+    chip("", "Semua umur", state.warga.length);
+    AGE.forEach(function (g) { chip(g.id, g.label + " (" + g.range + ")", count[g.id]); });
+  }
+  function renderWargaFilters() {
+    var seen = {}, opts = [["", "Semua gang"]];
+    state.warga.forEach(function (w) { var k = (w.gang || "").toLowerCase(); if (k && !seen[k]) seen[k] = w.gang; });
+    var keys = Object.keys(seen).sort(ncmp);
+    keys.forEach(function (k) { opts.push([k, seen[k]]); });
+    setOptions($("#wf-gang"), opts, true);
+    var dl = $("#gang-list");
+    dl.textContent = "";
+    keys.forEach(function (k) { dl.append(h("option", { value: seen[k] })); });
+    state.wf.gang = $("#wf-gang").value;
+    renderAgeChips();
+  }
+  function renderWargaCounts() {
+    var n = state.warga.length, mk = state.warga.filter(function (w) { return w.status_mukim === "mukim"; }).length;
+    $("#w-summary").textContent = state.wLoaded && !state.wError
+      ? "Total " + n + " warga · " + mk + " mukim · " + (n - mk) + " tidak mukim" : "";
+  }
+  function wRow(w) {
+    var a = ageOf(w.tanggal_lahir);
+    var ids = [w.no_kk ? "KK " + mask(w.no_kk) : "", w.no_ktp ? "KTP " + mask(w.no_ktp) : ""].filter(Boolean).join(" · ");
+    var info = ageInfo(ageGroup(a));
+    var tr = h("tr", { class: state.wEdit && state.wEdit.id === w.id ? "editing" : "" },
+      h("td", {}, h("strong", {}, w.nama), ids ? h("div", { class: "sub2" }, ids) : null),
+      h("td", { class: "date" }, a == null ? "-" : a + " th",
+        h("div", { class: "sub2" }, (info ? info.label + " · " : "") + (w.tanggal_lahir ? dateLabel(w.tanggal_lahir) : ""))),
+      h("td", {}, w.gang || h("span", { class: "muted" }, "-"), w.no_rumah ? h("div", { class: "sub2" }, "No. " + w.no_rumah) : null),
+      h("td", {}, h("div", { class: "chips" },
+        h("span", { class: "chip" + (w.status_mukim === "mukim" ? "" : " alt") }, w.status_mukim === "mukim" ? "Mukim" : "Tidak mukim"),
+        h("span", { class: "chip" + (w.status_rumah === "milik" ? "" : " alt") }, w.status_rumah === "milik" ? "Milik sendiri" : "Sewa"),
+        h("span", { class: "chip" + (w.domisili_ktp === "sarimukti" ? "" : " alt") }, w.domisili_ktp === "sarimukti" ? "KTP Sarimukti" : "KTP luar"))),
+      h("td", {}, w.no_telepon ? h("a", { class: "linkbtn", href: "tel:" + w.no_telepon }, w.no_telepon) : h("span", { class: "muted" }, "-"))
+    );
+    var act = h("div", { class: "rowact" });
+    if (state.wConfirmDel === w.id) {
+      act.append(
+        h("button", { type: "button", class: "btn danger small", onclick: function () { deleteWarga(w); } }, "Ya, hapus"),
+        h("button", { type: "button", class: "btn ghost small", onclick: function () { state.wConfirmDel = null; renderWargaList(); } }, "Batal"));
+    } else {
+      act.append(
+        h("button", { type: "button", class: "btn ghost small", onclick: function () { openWForm(w); } }, "Ubah"),
+        h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.wConfirmDel = w.id; renderWargaList(); } }, "Hapus"));
+    }
+    tr.append(h("td", { class: "r" }, act));
+    return tr;
+  }
+  function renderWargaList() {
+    var wrap = $("#w-table");
+    wrap.textContent = "";
+    var err = $("#w-error");
+    if (state.wError) { err.textContent = wErrText(state.wError); err.hidden = false; } else err.hidden = true;
+    renderWargaCounts();
+    if (state.wError) { $("#w-count").textContent = ""; $("#w-more-wrap").hidden = true; return; }
+    if (!state.wLoaded) { wrap.append(h("p", { class: "empty" }, "Memuat data warga...")); $("#w-more-wrap").hidden = true; return; }
+    var list = filtered();
+    $("#w-count").textContent = "Menampilkan " + Math.min(list.length, state.wLimit) + " dari " + list.length + " warga" +
+      (list.length !== state.warga.length ? " (difilter dari " + state.warga.length + ")" : "");
+    if (!list.length) {
+      wrap.append(h("p", { class: "empty" }, state.warga.length ? "Tidak ada warga yang cocok dengan filter." : "Belum ada data warga. Klik Tambah warga untuk mulai."));
+      $("#w-more-wrap").hidden = true;
+      return;
+    }
+    var tr = h("tr", {});
+    ["Nama", "Umur", "Gang / rumah", "Status", "Telepon", ""].forEach(function (t) { tr.append(h("th", {}, t)); });
+    var tbody = h("tbody", {});
+    list.slice(0, state.wLimit).forEach(function (w) { tbody.append(wRow(w)); });
+    wrap.append(h("table", { class: "wide" }, h("thead", {}, tr), tbody));
+    $("#w-more-wrap").hidden = list.length <= state.wLimit;
+  }
+  function renderWarga() {
+    renderWargaFilters();
+    renderWargaList();
+  }
+
+  // ---------- form warga ----------
+  function normPhone(v) { return String(v || "").replace(/[\s().-]/g, ""); }
+  // keepFamily: setelah menyimpan, KK, gang, nomor rumah, dan status tetap terisi
+  // karena anggota keluarga berikutnya biasanya sama.
+  function resetWForm(keepFamily) {
+    var keep = keepFamily ? {
+      kk: $("#w-kk").value, gang: $("#w-gang").value, rumah: $("#w-rumah").value,
+      mukim: pick("w-mukim"), rst: pick("w-rumah-st"), dom: pick("w-ktp-dom")
+    } : null;
+    $("#wform").reset();
+    if (keep) {
+      $("#w-kk").value = keep.kk; $("#w-gang").value = keep.gang; $("#w-rumah").value = keep.rumah;
+      setPick("w-mukim", keep.mukim); setPick("w-rumah-st", keep.rst); setPick("w-ktp-dom", keep.dom);
+    }
+    state.wEdit = null;
+    $("#wform-title").textContent = "Tambah warga";
+    $("#w-submit").textContent = "Simpan warga";
+  }
+  function openWForm(w) {
+    resetWForm(false);
+    $("#w-msg").textContent = "";
+    state.wConfirmDel = null;
+    if (w) {
+      state.wEdit = w;
+      $("#wform-title").textContent = "Ubah data warga";
+      $("#w-submit").textContent = "Simpan perubahan";
+      $("#w-nama").value = w.nama || "";
+      $("#w-kk").value = w.no_kk || "";
+      $("#w-ktp").value = w.no_ktp || "";
+      $("#w-lahir").value = w.tanggal_lahir || "";
+      $("#w-telp").value = w.no_telepon || "";
+      $("#w-gang").value = w.gang || "";
+      $("#w-rumah").value = w.no_rumah || "";
+      setPick("w-mukim", w.status_mukim); setPick("w-rumah-st", w.status_rumah); setPick("w-ktp-dom", w.domisili_ktp);
+    }
+    $("#wPanel").hidden = false;
+    renderWargaList();
+    $("#wPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#w-nama").focus();
+  }
+  function closeWForm() { resetWForm(false); $("#wPanel").hidden = true; $("#w-msg").textContent = ""; renderWargaList(); }
+  async function onWargaSubmit(ev) {
+    ev.preventDefault();
+    if (state.wSaving || !sb || !state.admin) return;
+    var msg = $("#w-msg");
+    var nama = $("#w-nama").value.trim().replace(/\s+/g, " ");
+    var kk = digits($("#w-kk").value), ktp = digits($("#w-ktp").value);
+    var lahir = $("#w-lahir").value;
+    var telp = normPhone($("#w-telp").value);
+    var gang = canonGang($("#w-gang").value);
+    var rumah = $("#w-rumah").value.trim();
+    if (!nama) { msg.textContent = "Isi nama lengkap."; return; }
+    if (kk && kk.length !== 16) { msg.textContent = "Nomor KK harus 16 digit. Terisi " + kk.length + " digit."; return; }
+    if (ktp && ktp.length !== 16) { msg.textContent = "Nomor KTP harus 16 digit. Terisi " + ktp.length + " digit."; return; }
+    if (!lahir) { msg.textContent = "Isi tanggal lahir."; return; }
+    if (lahir > todayISO()) { msg.textContent = "Tanggal lahir tidak boleh di masa depan."; return; }
+    if (telp && !/^\+?[0-9]{8,15}$/.test(telp)) { msg.textContent = "Nomor telepon tidak valid. Gunakan 8 sampai 15 digit."; return; }
+    if (!gang) { msg.textContent = "Isi nama gang."; return; }
+    if (!rumah) { msg.textContent = "Isi nomor rumah."; return; }
+    var ed = state.wEdit;
+    if (ktp) {
+      var dup = state.warga.filter(function (w) { return w.no_ktp === ktp && (!ed || w.id !== ed.id); })[0];
+      if (dup) { msg.textContent = "Nomor KTP ini sudah terdaftar atas nama " + dup.nama + "."; return; }
+    }
+    var row = {
+      nama: nama, no_kk: kk || null, no_ktp: ktp || null, tanggal_lahir: lahir,
+      status_mukim: pick("w-mukim"), status_rumah: pick("w-rumah-st"), domisili_ktp: pick("w-ktp-dom"),
+      no_telepon: telp || null, gang: gang, no_rumah: rumah
+    };
+    state.wSaving = true;
+    var btn = $("#w-submit");
+    btn.disabled = true; btn.textContent = "Menyimpan...";
+    msg.textContent = "";
+    try {
+      var r = ed ? await sb.from("warga").update(row).eq("id", ed.id).select()
+                 : await sb.from("warga").insert(row).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      if (ed) {
+        var ix = state.warga.indexOf(ed);
+        if (ix >= 0) state.warga[ix] = r.data[0];
+        resetWForm(false);
+        $("#wPanel").hidden = true;
+        flashTemp("Perubahan tersimpan.", "ok");
+      } else {
+        state.warga.push(r.data[0]);
+        $("#w-gang").value = gang;
+        resetWForm(true);
+        msg.textContent = "Tersimpan. Isi anggota keluarga berikutnya, atau tutup formulir.";
+        $("#w-nama").focus();
+      }
+      renderWarga();
+    } catch (e) {
+      msg.textContent = errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      state.wSaving = false;
+      btn.disabled = false;
+      btn.textContent = state.wEdit ? "Simpan perubahan" : "Simpan warga";
+    }
+  }
+  async function deleteWarga(w) {
+    try {
+      var r = await sb.from("warga").delete().eq("id", w.id).select("id");
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      state.warga = state.warga.filter(function (x) { return x.id !== w.id; });
+      state.wConfirmDel = null;
+      if (state.wEdit && state.wEdit.id === w.id) closeWForm();
+      flashTemp("Data warga dihapus.", "ok");
+      renderWarga();
+    } catch (e) {
+      flash(errText(e, "Gagal menghapus. Coba lagi."), "err");
+    }
+  }
+
+  // ---------- unduhan daftar warga ----------
+  function filterDesc() {
+    var f = state.wf, out = [];
+    if (f.q.trim()) out.push("Pencarian: " + f.q.trim());
+    if (f.umur) { var g = ageInfo(f.umur); out.push("Kelompok umur: " + g.label + " (" + g.range + ")"); }
+    if (f.min !== "" || f.max !== "") out.push("Umur: " + (f.min !== "" ? f.min : "0") + " sampai " + (f.max !== "" ? f.max : "...") + " tahun");
+    if (f.gang) out.push("Gang: " + $("#wf-gang").selectedOptions[0].textContent);
+    if (f.mukim) out.push(f.mukim === "mukim" ? "Mukim" : "Tidak mukim");
+    if (f.rumah) out.push(f.rumah === "milik" ? "Rumah milik sendiri" : "Rumah sewa");
+    if (f.ktp) out.push(f.ktp === "sarimukti" ? "KTP Sarimukti Cibitung" : "KTP luar");
+    return out.length ? out.join(" · ") : "Semua warga";
+  }
+  function wStatus(w) {
+    return [w.status_mukim === "mukim" ? "Mukim" : "Tidak mukim", w.status_rumah === "milik" ? "Milik sendiri" : "Sewa", w.domisili_ktp === "sarimukti" ? "KTP Sarimukti" : "KTP luar"];
+  }
+  function exportWargaPdf() {
+    if (!(window.jspdf && window.jspdf.jsPDF)) { flash("Pustaka PDF gagal dimuat. Muat ulang halaman.", "err"); return; }
+    var list = filtered(), nik = $("#wf-nik").checked;
+    var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15);
+    doc.text("Daftar Warga " + (state.cfg.namaRT || "RT 007/016"), 40, 44);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+    doc.text("Filter: " + filterDesc(), 40, 60, { maxWidth: 760 });
+    doc.text("Jumlah: " + list.length + " warga · Dicetak " + new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }), 40, 74);
+    if (nik) { doc.setTextColor(180, 40, 30); doc.text("RAHASIA: dokumen ini memuat nomor KK dan KTP. Simpan dengan hati-hati.", 40, 88); doc.setTextColor(0, 0, 0); }
+    var head = ["No", "Nama", "Umur", "Tgl lahir", "Gang / No. rumah", "Status", "Telepon"].concat(nik ? ["No. KK", "No. KTP"] : []);
+    doc.autoTable({
+      startY: nik ? 98 : 88, margin: { left: 40, right: 40 }, theme: "grid",
+      head: [head],
+      body: list.map(function (w, i) {
+        var a = ageOf(w.tanggal_lahir), info = ageInfo(ageGroup(a));
+        return [i + 1, w.nama, a == null ? "-" : a + " th" + (info ? " (" + info.label + ")" : ""), w.tanggal_lahir ? dateLabel(w.tanggal_lahir) : "-",
+          (w.gang || "-") + (w.no_rumah ? " / " + w.no_rumah : ""), wStatus(w).join(", "), w.no_telepon || "-"]
+          .concat(nik ? [w.no_kk || "-", w.no_ktp || "-"] : []);
+      }),
+      styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [217, 80, 10] },
+      columnStyles: { 0: { cellWidth: 26 }, 3: { cellWidth: 62 } }
+    });
+    pdfFooter(doc);
+    doc.save("daftar-warga-" + todayISO() + (nik ? "-lengkap" : "") + ".pdf");
+  }
+  // Nomor panjang ditulis sebagai ="..." supaya Excel tidak membuang angka 0 di depan atau mengubahnya jadi 3,2E+15.
+  function csvNum(v) { return v ? '="' + v + '"' : ""; }
+  function csvText(v) { v = String(v == null ? "" : v); return /^[=+\-@\t\r]/.test(v) ? "'" + v : v; }
+  function exportWargaCsv() {
+    var list = filtered(), nik = $("#wf-nik").checked;
+    var head = ["Nama", "Umur", "Tanggal lahir", "Kelompok umur", "Gang", "No rumah", "Tempat tinggal", "Status rumah", "Alamat KTP", "Telepon"].concat(nik ? ["No KK", "No KTP"] : []);
+    var lines = [head.map(csvCell).join(",")];
+    list.forEach(function (w) {
+      var a = ageOf(w.tanggal_lahir), st = wStatus(w), info = ageInfo(ageGroup(a));
+      var cells = [csvText(w.nama), a == null ? "" : a, w.tanggal_lahir || "", info ? info.label : "", csvText(w.gang), csvText(w.no_rumah), st[0], st[1], st[2], csvNum(w.no_telepon)];
+      if (nik) cells.push(csvNum(w.no_kk), csvNum(w.no_ktp));
+      lines.push(cells.map(csvCell).join(","));
+    });
+    downloadBlob(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }), "daftar-warga-" + todayISO() + (nik ? "-lengkap" : "") + ".csv");
+  }
+
   // ======================================================================
   // PEMASANGAN EVENT
   // ======================================================================
@@ -839,9 +1219,34 @@
     else setPreview(state.bEdit && state.bEdit.foto_path ? proofUrl(state.bEdit.foto_path) : null);
   });
 
+  // warga
+  $("#btn-wadd").addEventListener("click", function () { openWForm(null); });
+  $("#wform").addEventListener("submit", onWargaSubmit);
+  $("#w-cancel").addEventListener("click", closeWForm);
+  ["#w-kk", "#w-ktp"].forEach(function (s) { $(s).addEventListener("input", function (e) { e.target.value = digits(e.target.value).slice(0, 16); }); });
+  var FILTER_IDS = { q: "#wf-q", min: "#wf-min", max: "#wf-max", gang: "#wf-gang", mukim: "#wf-mukim", rumah: "#wf-rumah", ktp: "#wf-ktp", sort: "#wf-sort" };
+  Object.keys(FILTER_IDS).forEach(function (k) {
+    $(FILTER_IDS[k]).addEventListener("input", function (e) {
+      state.wf[k] = e.target.value;
+      state.wLimit = 100;
+      if (k === "min" || k === "max") { state.wf.umur = ""; renderAgeChips(); }
+      renderWargaList();
+    });
+  });
+  $("#wf-reset").addEventListener("click", function () {
+    Object.keys(FILTER_IDS).forEach(function (k) { state.wf[k] = k === "sort" ? "nama" : ""; $(FILTER_IDS[k]).value = state.wf[k]; });
+    state.wf.umur = "";
+    state.wLimit = 100;
+    renderAgeChips(); renderWargaList();
+  });
+  $("#w-more").addEventListener("click", function () { state.wLimit += 100; renderWargaList(); });
+  $("#btn-wpdf").addEventListener("click", exportWargaPdf);
+  $("#btn-wcsv").addEventListener("click", exportWargaCsv);
+
   // ---------- mulai ----------
   resetForm(false);
   resetBForm();
+  resetWForm(false);
   renderAll();
 
   if (!sb) {

@@ -121,7 +121,7 @@
         <label for="period">Periode laporan</label>
         <select id="period"></select>
       </div>
-      <div class="group" id="exports" hidden>
+      <div class="group" id="exportbar" hidden>
         <button type="button" class="btn" id="btn-pdf">Unduh PDF</button>
         <button type="button" class="btn ghost" id="btn-csv">Unduh CSV</button>
       </div>
@@ -206,6 +206,171 @@
         <span class="hint" id="c-msg" role="status"></span>
       </div>
     </details>
+  </section>
+
+  <!-- ===== DATA WARGA (pengurus) ===== -->
+  <section class="tabpanel" id="tab-warga" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Data warga</h2>
+        <p class="hint" id="w-summary"></p>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="btn-wadd">Tambah warga</button>
+      </div>
+    </div>
+
+    <div id="w-error" class="notice err" hidden></div>
+
+    <section class="panel" id="wPanel" hidden aria-labelledby="wform-title">
+      <header>
+        <h2 id="wform-title">Tambah warga</h2>
+        <span class="hint">NIK dan KK hanya terlihat oleh pengurus yang login.</span>
+      </header>
+      <form id="wform" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field wide">
+            <label for="w-nama">Nama lengkap</label>
+            <input type="text" id="w-nama" maxlength="120" placeholder="Sesuai KTP atau KK">
+          </div>
+          <div class="field">
+            <label for="w-kk">Nomor KK (16 digit)</label>
+            <input type="text" id="w-kk" inputmode="numeric" maxlength="16" placeholder="16 digit angka">
+          </div>
+          <div class="field">
+            <label for="w-ktp">Nomor KTP / NIK (16 digit, kosongkan untuk anak)</label>
+            <input type="text" id="w-ktp" inputmode="numeric" maxlength="16" placeholder="16 digit angka">
+          </div>
+          <div class="field">
+            <label for="w-lahir">Tanggal lahir</label>
+            <input type="date" id="w-lahir">
+          </div>
+          <div class="field">
+            <label for="w-telp">Nomor telepon aktif</label>
+            <input type="text" id="w-telp" inputmode="tel" maxlength="20" placeholder="08123456789">
+          </div>
+          <div class="field">
+            <label for="w-gang">Nama gang</label>
+            <input type="text" id="w-gang" list="gang-list" maxlength="60" placeholder="Contoh: Gang Mawar">
+            <datalist id="gang-list"></datalist>
+          </div>
+          <div class="field">
+            <label for="w-rumah">Nomor rumah</label>
+            <input type="text" id="w-rumah" maxlength="20" placeholder="Contoh: 12A">
+          </div>
+          <fieldset class="field">
+            <legend>Tempat tinggal</legend>
+            <div class="seg">
+              <input type="radio" name="w-mukim" id="wm-mukim" value="mukim" checked>
+              <label for="wm-mukim">Mukim</label>
+              <input type="radio" name="w-mukim" id="wm-tidak" value="tidak_mukim">
+              <label for="wm-tidak">Tidak mukim</label>
+            </div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Status rumah</legend>
+            <div class="seg">
+              <input type="radio" name="w-rumah-st" id="wr-milik" value="milik" checked>
+              <label for="wr-milik">Milik sendiri</label>
+              <input type="radio" name="w-rumah-st" id="wr-sewa" value="sewa">
+              <label for="wr-sewa">Sewa</label>
+            </div>
+          </fieldset>
+          <fieldset class="field wide">
+            <legend>Alamat di KTP</legend>
+            <div class="seg">
+              <input type="radio" name="w-ktp-dom" id="wd-sari" value="sarimukti" checked>
+              <label for="wd-sari">Sarimukti Cibitung</label>
+              <input type="radio" name="w-ktp-dom" id="wd-luar" value="luar">
+              <label for="wd-luar">Luar Sarimukti Cibitung</label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="actions" style="margin-top: 16px;">
+          <button type="submit" class="btn" id="w-submit">Simpan warga</button>
+          <button type="button" class="btn ghost" id="w-cancel">Tutup formulir</button>
+          <span class="hint" id="w-msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-label="Filter warga">
+      <div class="field">
+        <span class="fl" id="w-umur-lbl">Kelompok umur</span>
+        <div class="agechips" id="w-agechips" role="group" aria-labelledby="w-umur-lbl"></div>
+      </div>
+      <div class="filters">
+        <div class="field">
+          <label for="wf-q">Cari nama, telepon, atau nomor KK/KTP</label>
+          <input type="search" id="wf-q" placeholder="Ketik di sini">
+        </div>
+        <div class="field">
+          <label for="wf-min">Rentang umur (tahun)</label>
+          <div class="range">
+            <input type="number" id="wf-min" min="0" max="120" placeholder="Min." aria-label="Umur minimal">
+            <input type="number" id="wf-max" min="0" max="120" placeholder="Maks." aria-label="Umur maksimal">
+          </div>
+        </div>
+        <div class="field">
+          <label for="wf-gang">Gang</label>
+          <select id="wf-gang"></select>
+        </div>
+        <div class="field">
+          <label for="wf-mukim">Tempat tinggal</label>
+          <select id="wf-mukim">
+            <option value="">Semua</option>
+            <option value="mukim">Mukim</option>
+            <option value="tidak_mukim">Tidak mukim</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="wf-rumah">Status rumah</label>
+          <select id="wf-rumah">
+            <option value="">Semua</option>
+            <option value="milik">Milik sendiri</option>
+            <option value="sewa">Sewa</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="wf-ktp">Alamat di KTP</label>
+          <select id="wf-ktp">
+            <option value="">Semua</option>
+            <option value="sarimukti">Sarimukti Cibitung</option>
+            <option value="luar">Luar</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="wf-sort">Urutkan</label>
+          <select id="wf-sort">
+            <option value="nama">Nama (A-Z)</option>
+            <option value="gang">Gang dan nomor rumah</option>
+            <option value="tua">Umur (tertua dulu)</option>
+            <option value="muda">Umur (termuda dulu)</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn ghost small" id="wf-reset">Hapus filter</button>
+        <button type="button" class="btn small" id="btn-wpdf">Unduh PDF daftar ini</button>
+        <button type="button" class="btn ghost small" id="btn-wcsv">Unduh CSV daftar ini</button>
+        <label class="check" for="wf-nik">
+          <input type="checkbox" id="wf-nik">
+          <span>Sertakan nomor KK dan KTP di unduhan</span>
+        </label>
+      </div>
+      <p class="hint">Unduhan sesuai filter yang aktif, misalnya daftar lansia atau balita. Secara bawaan nomor KK dan KTP tidak ikut dicetak. Jika dicentang, simpan dan bagikan file dengan hati-hati karena berisi data pribadi.</p>
+    </section>
+
+    <section class="panel ledger" aria-labelledby="wlist-title">
+      <div class="ledger-head">
+        <h2 id="wlist-title">Daftar warga</h2>
+        <span class="hint" id="w-count"></span>
+      </div>
+      <div class="tablewrap" id="w-table"></div>
+      <div class="actions" id="w-more-wrap" style="padding: 12px 18px;" hidden>
+        <button type="button" class="btn ghost small" id="w-more">Tampilkan 100 lagi</button>
+      </div>
+    </section>
   </section>
 </main>
 </div>
