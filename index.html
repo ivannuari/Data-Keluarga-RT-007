@@ -30,6 +30,12 @@
     </div>
   </header>
 
+  <!-- ===== SELAMAT DATANG (hanya pengurus yang login) ===== -->
+  <section class="welcome" id="welcome" aria-live="polite" hidden>
+    <p class="welcome-line">Selamat datang, <strong id="welcome-role"></strong></p>
+    <p class="hint" id="welcome-sub"></p>
+  </section>
+
   <div id="flash" class="notice" role="status" hidden></div>
 
   <!-- ===== PENGUMUMAN PENTING: tampil di atas semua halaman ===== -->
@@ -548,7 +554,7 @@
           <span>Sertakan nomor KK dan KTP di unduhan</span>
         </label>
       </div>
-      <p class="hint">Unduhan sesuai filter yang aktif, misalnya daftar lansia atau balita. Secara bawaan nomor KK dan KTP tidak ikut dicetak. Jika dicentang, simpan dan bagikan file dengan hati-hati karena berisi data pribadi.</p>
+      <p class="hint">Unduhan sesuai filter yang aktif, misalnya daftar lansia atau balita. Secara bawaan nomor KK dan KTP tidak ikut dicetak. Pilihan untuk menyertakannya hanya ada untuk Ketua dan Wakil, dan file seperti itu harus disimpan dengan hati-hati karena berisi data pribadi.</p>
     </section>
 
     <section class="panel ledger" aria-labelledby="wlist-title">
@@ -562,6 +568,87 @@
       </div>
     </section>
   </section>
+  <!-- ===== PENGURUS (Ketua dan Wakil) ===== -->
+  <section class="tabpanel" id="tab-pengurus" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Pengurus dan hak akses</h2>
+        <p class="hint">Peran menentukan apa yang boleh dilakukan, dan tampil sebagai "Diposting oleh ..." pada setiap postingan.</p>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="btn-gadd" hidden>Tambah pengurus</button>
+      </div>
+    </div>
+
+    <div id="g-error" class="notice err" hidden></div>
+
+    <details class="panel howto">
+      <summary>Cara menambah akun pengurus baru</summary>
+      <ol>
+        <li>Buka Supabase, menu <strong>Authentication</strong> lalu <strong>Users</strong>, klik <strong>Add user</strong> dan pilih <strong>Create new user</strong>.</li>
+        <li>Isi email dan kata sandi sementara, lalu centang <strong>Auto Confirm User</strong>. Berikan email dan kata sandi itu kepada orangnya.</li>
+        <li>Kembali ke sini, klik <strong>Tambah pengurus</strong>, isi email yang sama, pilih peran, lalu simpan.</li>
+      </ol>
+      <p class="hint">Untuk menonaktifkan seseorang tanpa menghapus riwayat postingannya, ubah datanya lalu hilangkan centang Akun aktif.</p>
+    </details>
+
+    <section class="panel" id="gPanel" hidden aria-labelledby="gform-title">
+      <header>
+        <h2 id="gform-title">Tambah pengurus</h2>
+        <span class="hint">Hanya Ketua dan Wakil yang bisa mengubah daftar ini.</span>
+      </header>
+      <form id="gform" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field">
+            <label for="g-email">Email login</label>
+            <input type="text" id="g-email" inputmode="email" maxlength="200" placeholder="nama@contoh.com">
+          </div>
+          <div class="field">
+            <label for="g-nama">Nama (boleh dikosongkan)</label>
+            <input type="text" id="g-nama" maxlength="80" placeholder="Contoh: Bapak Ahmad">
+          </div>
+          <div class="field">
+            <label for="g-peran">Peran</label>
+            <select id="g-peran"></select>
+          </div>
+          <div class="field" id="g-gang-wrap" hidden>
+            <label for="g-gang">Gang yang dipegang</label>
+            <input type="text" id="g-gang" maxlength="60" placeholder="Contoh: Gang Nuri">
+          </div>
+          <label class="check wide" for="g-aktif">
+            <input type="checkbox" id="g-aktif" checked>
+            <span>Akun aktif</span>
+          </label>
+        </div>
+        <p class="hint" id="g-selfnote" hidden>Peran dan status akun Anda sendiri tidak bisa diubah dari sini, agar Anda tidak terkunci.</p>
+        <div class="actions" style="margin-top: 16px;">
+          <button type="submit" class="btn" id="g-submit">Simpan</button>
+          <button type="button" class="btn ghost" id="g-cancel">Batal</button>
+          <span class="hint" id="g-msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div id="g-list"></div>
+
+    <section class="panel" aria-labelledby="matrix-title">
+      <header><h2 id="matrix-title">Siapa boleh apa</h2></header>
+      <div class="tablewrap">
+        <table class="matrix">
+          <thead><tr><th>Fitur</th><th>Ketua dan Wakil</th><th>PIC</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Menulis berita</th><td>Semua berita</td><td>Boleh; ubah dan hapus hanya berita sendiri</td></tr>
+            <tr><th scope="row">Data warga (lihat, tambah, ubah)</th><td>Ya</td><td>Ya</td></tr>
+            <tr><th scope="row">Hapus data warga</th><td>Ya</td><td>Tidak</td></tr>
+            <tr><th scope="row">Unduhan dengan nomor KK dan KTP</th><td>Ya</td><td>Tidak</td></tr>
+            <tr><th scope="row">Keuangan, pengumuman, info penting, kelola laporan</th><td>Ya</td><td>Tidak</td></tr>
+            <tr><th scope="row">Daftar pengurus</th><td>Ya</td><td>Tidak</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
 </main>
 </div>
 

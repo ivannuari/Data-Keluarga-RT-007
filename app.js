@@ -221,7 +221,18 @@
     $("#btn-logout").hidden = !state.signedIn;
     var badge = $("#roleBadge");
     badge.hidden = !state.signedIn;
-    badge.textContent = state.admin ? "Pengurus: " + state.email : state.email + " (bukan pengurus)";
+    badge.textContent = state.staff ? state.label + ": " + state.email : state.email + " (bukan pengurus)";
+    $("#wf-nik").closest("label").hidden = !state.admin;
+    if (!state.admin) $("#wf-nik").checked = false;
+    var wl = $("#welcome");
+    wl.hidden = !state.staff;
+    if (state.staff) {
+      var pr = state.profile || {};
+      $("#welcome-role").textContent = state.label;
+      $("#welcome-sub").textContent = (pr.nama ? pr.nama + " · " : "") + (state.admin
+        ? "Akses penuh: keuangan, berita, pengumuman, info penting, laporan, data warga, dan daftar pengurus."
+        : "Akses Anda: menulis berita dan menginput data warga.");
+    }
     if (state.signedIn) $("#loginPanel").hidden = true;
   }
 
@@ -292,13 +303,26 @@
   async function refreshAuth(session) {
     state.signedIn = !!(session && session.user);
     state.email = state.signedIn ? (session.user.email || "") : "";
-    state.admin = false;
+    state.admin = false; state.staff = false; state.role = ""; state.label = ""; state.profile = null;
     if (state.signedIn) {
-      var r = await sb.rpc("is_admin");
-      state.admin = r.data === true;
+      var r = await sb.rpc("profil_saya");
+      if (r.error) {
+        // supabase-tahap4.sql belum dijalankan: pakai pemeriksa lama supaya pengurus tidak terkunci.
+        var r0 = await sb.rpc("is_admin");
+        if (r0.data === true) state.profile = { peran: "ketua", label: "Pengurus", nama: null, gang: null };
+      } else if (r.data && typeof r.data === "object") {
+        state.profile = r.data;
+      }
+    }
+    if (state.profile) {
+      state.staff = true;
+      state.role = state.profile.peran;
+      state.label = state.profile.label || "Pengurus";
+      state.admin = state.role === "ketua" || state.role === "wakil";
     }
     // Data warga hanya dimuat untuk pengurus. Pengunjung biasa tidak pernah meminta tabel ini.
-    if (state.admin) { if (!state.wLoaded) loadWarga(); } else { clearWarga(); }
+    if (state.staff) { if (!state.wLoaded) loadWarga(); } else { clearWarga(); }
+    if (state.admin) { if (!state.gLoaded) loadPengurus(); } else { clearPengurus(); }
     // Pengurus membaca tabel laporan lengkap, warga membaca tampilan publik.
     if (state.lSrc && state.lSrc !== (state.admin ? "laporan" : "laporan_publik")) { state.lManage = null; state.lDraft = null; loadLaporan(); }
     applyAuthUi();
@@ -557,9 +581,10 @@
     { id: "laporan", label: "Laporan" },
     { id: "info", label: "Info Penting" },
     { id: "keuangan", label: "Keuangan" },
-    { id: "warga", label: "Data Warga", admin: true }
+    { id: "warga", label: "Data Warga", staff: true },
+    { id: "pengurus", label: "Pengurus", admin: true }
   ];
-  function tabsFor() { return TABS.filter(function (t) { return !t.admin || state.admin; }); }
+  function tabsFor() { return TABS.filter(function (t) { return (!t.admin || state.admin) && (!t.staff || state.staff); }); }
   function activeTab() {
     var t = (location.hash || "").slice(1);
     return tabsFor().some(function (x) { return x.id === t; }) ? t : "beranda";
@@ -581,6 +606,7 @@
     renderPinned();
     if (cur === "keuangan") renderFinance();
     else if (cur === "warga") renderWarga();
+    else if (cur === "pengurus") renderPengurus();
     else if (cur === "laporan") renderLaporan();
     else if (cur === "info") renderInfo();
     else { renderBerita(); renderPengAdmin(); }
@@ -636,13 +662,17 @@
     $("#proof-x").focus();
   }
 
+  // Ketua dan Wakil boleh mengubah semua berita; PIC hanya berita miliknya sendiri.
+  function canEditBerita(b) {
+    return state.admin || (state.staff && !!b.oleh_email && b.oleh_email === String(state.email || "").toLowerCase());
+  }
   function postEl(b) {
     var isi = b.isi || "";
     var isLong = isi.length > LONG_CHARS || isi.split("\n").length > 8;
     var open = !!state.bOpen[b.id];
     var editing = state.bEdit && state.bEdit.id === b.id;
     var body = h("div", { class: "postbody" },
-      h("p", { class: "postdate" }, longDate(b.tanggal)),
+      h("p", { class: "postdate" }, longDate(b.tanggal), b.oleh_label ? h("span", { class: "postby" }, " · Diposting oleh " + b.oleh_label) : null),
       h("h3", {}, b.judul),
       isi ? h("p", { class: "posttext" + (isLong && !open ? " clamp" : "") }, isi) : null);
     if (isLong) {
@@ -651,7 +681,7 @@
         onclick: function () { state.bOpen[b.id] = !open; renderBerita(); }
       }, open ? "Tutup" : "Baca selengkapnya"));
     }
-    if (state.admin) {
+    if (canEditBerita(b)) {
       var act = h("div", { class: "rowact left" });
       if (state.bConfirmDel === b.id) {
         act.append(
@@ -679,8 +709,8 @@
     var wrap = $("#b-list");
     wrap.textContent = "";
     var err = $("#b-error");
-    $("#btn-badd").hidden = !state.admin;
-    if (!state.admin && !$("#bPanel").hidden) { resetBForm(); $("#bPanel").hidden = true; }
+    $("#btn-badd").hidden = !state.staff;
+    if (!state.staff && !$("#bPanel").hidden) { resetBForm(); $("#bPanel").hidden = true; }
     $("#b-more-wrap").hidden = true;
     if (!sb) {
       err.hidden = true;
@@ -692,7 +722,7 @@
     if (!state.bLoaded) { wrap.append(h("p", { class: "empty card" }, "Memuat berita...")); return; }
     var all = state.berita.filter(function (b) { return b && typeof b.tanggal === "string" && /^\d{4}-\d{2}-\d{2}/.test(b.tanggal); });
     if (!all.length) {
-      wrap.append(h("p", { class: "empty card" }, state.admin
+      wrap.append(h("p", { class: "empty card" }, state.staff
         ? "Belum ada berita. Klik Tulis berita untuk menerbitkan yang pertama."
         : "Belum ada berita."));
       return;
@@ -754,7 +784,7 @@
   }
   async function onBeritaSubmit(ev) {
     ev.preventDefault();
-    if (state.bSaving || !sb || !state.admin) return;
+    if (state.bSaving || !sb || !state.staff) return;
     var msg = $("#b-msg");
     var judul = $("#b-judul").value.trim().replace(/\s+/g, " ");
     var isi = $("#b-isi").value.replace(/\r\n/g, "\n").trim();
@@ -874,7 +904,7 @@
     return out;
   }
   async function loadWarga() {
-    if (!sb || !state.admin) return;
+    if (!sb || !state.staff) return;
     try {
       state.warga = await fetchWarga();
       state.wError = null;
@@ -971,7 +1001,8 @@
     var ids = [w.no_kk ? "KK " + mask(w.no_kk) : "", w.no_ktp ? "KTP " + mask(w.no_ktp) : ""].filter(Boolean).join(" · ");
     var info = ageInfo(ageGroup(a));
     var tr = h("tr", { class: state.wEdit && state.wEdit.id === w.id ? "editing" : "" },
-      h("td", {}, h("strong", {}, w.nama), ids ? h("div", { class: "sub2" }, ids) : null),
+      h("td", {}, h("strong", {}, w.nama), ids ? h("div", { class: "sub2" }, ids) : null,
+        w.oleh_label ? h("div", { class: "sub2" }, "Dicatat oleh " + w.oleh_label) : null),
       h("td", { class: "date" }, a == null ? "-" : a + " th",
         h("div", { class: "sub2" }, (info ? info.label + " · " : "") + (w.tanggal_lahir ? dateLabel(w.tanggal_lahir) : ""))),
       h("td", {}, w.gang || h("span", { class: "muted" }, "-"), w.no_rumah ? h("div", { class: "sub2" }, "No. " + w.no_rumah) : null),
@@ -989,7 +1020,7 @@
     } else {
       act.append(
         h("button", { type: "button", class: "btn ghost small", onclick: function () { openWForm(w); } }, "Ubah"),
-        h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.wConfirmDel = w.id; renderWargaList(); } }, "Hapus"));
+        state.admin ? h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.wConfirmDel = w.id; renderWargaList(); } }, "Hapus") : null);
     }
     tr.append(h("td", { class: "r" }, act));
     return tr;
@@ -1056,6 +1087,9 @@
       $("#w-gang").value = w.gang || "";
       $("#w-rumah").value = w.no_rumah || "";
       setPick("w-mukim", w.status_mukim); setPick("w-rumah-st", w.status_rumah); setPick("w-ktp-dom", w.domisili_ktp);
+    } else if (state.role === "pic" && state.profile && state.profile.gang) {
+      // PIC biasanya menginput warga di gangnya sendiri.
+      $("#w-gang").value = canonGang(state.profile.gang);
     }
     $("#wPanel").hidden = false;
     renderWargaList();
@@ -1065,7 +1099,7 @@
   function closeWForm() { resetWForm(false); $("#wPanel").hidden = true; $("#w-msg").textContent = ""; renderWargaList(); }
   async function onWargaSubmit(ev) {
     ev.preventDefault();
-    if (state.wSaving || !sb || !state.admin) return;
+    if (state.wSaving || !sb || !state.staff) return;
     var msg = $("#w-msg");
     var nama = $("#w-nama").value.trim().replace(/\s+/g, " ");
     var kk = digits($("#w-kk").value), ktp = digits($("#w-ktp").value);
@@ -1154,7 +1188,7 @@
   }
   function exportWargaPdf() {
     if (!(window.jspdf && window.jspdf.jsPDF)) { flash("Pustaka PDF gagal dimuat. Muat ulang halaman.", "err"); return; }
-    var list = filtered(), nik = $("#wf-nik").checked;
+    var list = filtered(), nik = state.admin && $("#wf-nik").checked;
     var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
     doc.setFont("helvetica", "bold"); doc.setFontSize(15);
     doc.text("Daftar Warga " + (state.cfg.namaRT || "RT 007/016"), 40, 44);
@@ -1182,7 +1216,7 @@
   function csvNum(v) { return v ? '="' + v + '"' : ""; }
   function csvText(v) { v = String(v == null ? "" : v); return /^[=+\-@\t\r]/.test(v) ? "'" + v : v; }
   function exportWargaCsv() {
-    var list = filtered(), nik = $("#wf-nik").checked;
+    var list = filtered(), nik = state.admin && $("#wf-nik").checked;
     var head = ["Nama", "Umur", "Tanggal lahir", "Kelompok umur", "Gang", "No rumah", "Tempat tinggal", "Status rumah", "Alamat KTP", "Telepon"].concat(nik ? ["No KK", "No KTP"] : []);
     var lines = [head.map(csvCell).join(",")];
     list.forEach(function (w) {
@@ -1278,7 +1312,8 @@
         when ? h("span", { class: "pinwhen" + (n === 0 ? " today" : "") }, when) : null),
       h("h2", { class: "pintitle" }, p.judul),
       meta.children.length ? meta : null,
-      p.isi ? h("p", { class: "pintext" }, p.isi) : null);
+      p.isi ? h("p", { class: "pintext" }, p.isi) : null,
+      p.oleh_label ? h("p", { class: "pinby" }, "Diumumkan oleh " + p.oleh_label) : null);
   }
   function renderPinned() {
     var box = $("#pinned");
@@ -1791,6 +1826,161 @@
   }
 
   // ======================================================================
+  // TAHAP 4: DAFTAR PENGURUS DAN PERAN (hanya Ketua dan Wakil)
+  // ======================================================================
+  Object.assign(state, { pgs: [], gLoaded: false, gError: null, gEdit: null, gConfirmDel: null, gSaving: false });
+  var PERAN = [["ketua", "Ketua RT"], ["wakil", "Wakil Ketua RT"], ["pic", "PIC (penanggung jawab gang)"]];
+  function peranLabel(g) {
+    if (g.peran === "ketua") return "Ketua RT";
+    if (g.peran === "wakil") return "Wakil Ketua RT";
+    return "PIC" + (g.gang && g.gang.trim() ? " " + g.gang.trim() : "");
+  }
+  function clearPengurus() {
+    state.pgs = []; state.gLoaded = false; state.gError = null; state.gEdit = null; state.gConfirmDel = null;
+    $("#gPanel").hidden = true;
+    $("#g-list").textContent = "";
+  }
+  async function loadPengurus() {
+    if (!sb || !state.admin) return;
+    try {
+      state.pgs = await fetchRows("pengurus", function (q) { return q.order("peran", { ascending: true }).order("email", { ascending: true }); });
+      state.gError = null;
+    } catch (e) {
+      console.error("Gagal memuat pengurus:", e);
+      state.gError = e || {};
+    }
+    state.gLoaded = true;
+    renderAll();
+  }
+  function gErrText(e, fallback) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "P0001" && e.message) return e.message;
+    if (c === "23505") return "Email ini sudah terdaftar sebagai pengurus.";
+    if (c === "23514") return "Isian tidak sesuai aturan. Periksa email, peran, dan nama gang.";
+    return errText(e, fallback);
+  }
+  function renderPengurus() {
+    $("#btn-gadd").hidden = !state.admin;
+    if (!state.admin) { if (!$("#gPanel").hidden) { resetGForm(); $("#gPanel").hidden = true; } return; }
+    var wrap = $("#g-list"), err = $("#g-error");
+    wrap.textContent = "";
+    if (state.gError) { err.textContent = secErr(state.gError, "pengurus", "Daftar pengurus").replace("supabase-tahap3.sql", "supabase-tahap4.sql"); err.hidden = false; return; }
+    err.hidden = true;
+    if (!state.gLoaded) { wrap.append(h("p", { class: "empty card" }, "Memuat daftar pengurus...")); return; }
+    if (!state.pgs.length) { wrap.append(h("p", { class: "empty card" }, "Belum ada pengurus.")); return; }
+    var me = String(state.email || "").toLowerCase();
+    var ul = h("ul", { class: "plain kgrid" });
+    state.pgs.forEach(function (g) {
+      var self = g.email === me;
+      var full = g.peran === "ketua" || g.peran === "wakil";
+      var act = h("div", { class: "rowact left" });
+      if (state.gConfirmDel === g.email) {
+        act.append(
+          h("button", { type: "button", class: "btn danger small", onclick: function () { deletePengurus(g); } }, "Ya, hapus akun dari daftar"),
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { state.gConfirmDel = null; renderPengurus(); } }, "Batal"));
+      } else {
+        act.append(h("button", { type: "button", class: "btn ghost small", onclick: function () { openGForm(g); } }, "Ubah"));
+        if (!self) act.append(h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.gConfirmDel = g.email; renderPengurus(); } }, "Hapus"));
+      }
+      ul.append(h("li", { class: "kcard" + (state.gEdit && state.gEdit.email === g.email ? " editing" : "") + (g.aktif ? "" : " ended") },
+        h("div", { class: "kmain" },
+          h("strong", { class: "kname" }, peranLabel(g)),
+          g.nama ? h("span", { class: "kperan" }, g.nama) : null,
+          h("span", { class: "hint" }, g.email + (self ? " (Anda)" : "")),
+          h("div", { class: "chips" },
+            h("span", { class: "chip" + (full ? " alt" : "") }, full ? "Admin penuh" : "Berita dan data warga"),
+            g.aktif ? null : h("span", { class: "chip" }, "Nonaktif"))),
+        act));
+    });
+    wrap.append(ul);
+  }
+  function syncGangField() {
+    var pic = $("#g-peran").value === "pic";
+    $("#g-gang-wrap").hidden = !pic;
+  }
+  function resetGForm() {
+    $("#gform").reset();
+    setOptions($("#g-peran"), PERAN);
+    state.gEdit = null;
+    $("#gform-title").textContent = "Tambah pengurus";
+    $("#g-submit").textContent = "Simpan";
+    $("#g-email").disabled = false;
+    $("#g-aktif").checked = true;
+    $("#g-selfnote").hidden = true;
+    $("#g-peran").disabled = false; $("#g-aktif").disabled = false;
+    syncGangField();
+  }
+  function openGForm(g) {
+    resetGForm();
+    $("#g-msg").textContent = "";
+    state.gConfirmDel = null;
+    if (g) {
+      state.gEdit = g;
+      $("#gform-title").textContent = "Ubah pengurus";
+      $("#g-submit").textContent = "Simpan perubahan";
+      $("#g-email").value = g.email; $("#g-email").disabled = true;
+      $("#g-nama").value = g.nama || "";
+      $("#g-peran").value = g.peran;
+      $("#g-gang").value = g.gang || "";
+      $("#g-aktif").checked = !!g.aktif;
+      if (g.email === String(state.email || "").toLowerCase()) {
+        $("#g-peran").disabled = true; $("#g-aktif").disabled = true; $("#g-selfnote").hidden = false;
+      }
+      syncGangField();
+    }
+    $("#gPanel").hidden = false;
+    renderPengurus();
+    $("#gPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    (g ? $("#g-nama") : $("#g-email")).focus();
+  }
+  function closeGForm() { resetGForm(); $("#gPanel").hidden = true; $("#g-msg").textContent = ""; renderPengurus(); }
+  async function onPengurusSubmit(ev) {
+    ev.preventDefault();
+    if (state.gSaving || !sb || !state.admin) return;
+    var msg = $("#g-msg");
+    var ed = state.gEdit;
+    var email = ed ? ed.email : $("#g-email").value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = "Isi email yang valid."; return; }
+    var peran = ed && $("#g-peran").disabled ? ed.peran : $("#g-peran").value;
+    var gang = peran === "pic" ? $("#g-gang").value.trim().replace(/\s+/g, " ") : "";
+    if (peran === "pic" && !gang) { msg.textContent = "Isi nama gang yang dipegang PIC, misalnya Gang Nuri. Nama ini tampil di setiap postingannya."; return; }
+    var row = { nama: $("#g-nama").value.trim().replace(/\s+/g, " ") || null, peran: peran, gang: gang || null, aktif: ed && $("#g-aktif").disabled ? ed.aktif : $("#g-aktif").checked };
+    state.gSaving = true;
+    var btn = $("#g-submit");
+    btn.disabled = true; btn.textContent = "Menyimpan..."; msg.textContent = "";
+    try {
+      var r = ed ? await sb.from("pengurus").update(row).eq("email", ed.email).select()
+                 : await sb.from("pengurus").insert(Object.assign({ email: email }, row)).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      var wasEdit = !!ed;
+      resetGForm();
+      $("#gPanel").hidden = true;
+      flashTemp(wasEdit ? "Perubahan tersimpan." : "Pengurus ditambahkan. Pastikan akun login-nya sudah dibuat di Supabase.", "ok");
+      await loadPengurus();
+    } catch (e) {
+      var c = e && e.code ? String(e.code) : "";
+      msg.textContent = (c === "42P01" || c === "PGRST205") ? "Tabel pengurus belum dibuat. Jalankan supabase-tahap4.sql di SQL Editor Supabase."
+        : gErrText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      state.gSaving = false;
+      btn.disabled = false;
+      btn.textContent = state.gEdit ? "Simpan perubahan" : "Simpan";
+    }
+  }
+  async function deletePengurus(g) {
+    try {
+      var r = await sb.from("pengurus").delete().eq("email", g.email).select("email");
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      state.gConfirmDel = null;
+      if (state.gEdit && state.gEdit.email === g.email) closeGForm();
+      flashTemp("Pengurus dihapus dari daftar.", "ok");
+      await loadPengurus();
+    } catch (e) { flash(gErrText(e, "Gagal menghapus. Coba lagi."), "err"); }
+  }
+
+  // ======================================================================
   // PEMASANGAN EVENT
   // ======================================================================
   $("#period").addEventListener("change", function (e) { state.period = e.target.value; state.periodChosen = true; state.confirmDel = null; renderAll(); });
@@ -1865,8 +2055,15 @@
     else setLPreview(null);
   });
 
+  // pengurus
+  $("#btn-gadd").addEventListener("click", function () { openGForm(null); });
+  $("#gform").addEventListener("submit", onPengurusSubmit);
+  $("#g-cancel").addEventListener("click", closeGForm);
+  $("#g-peran").addEventListener("change", syncGangField);
+
   // ---------- mulai ----------
   resetForm(false);
+  resetGForm();
   resetBForm();
   resetWForm(false);
   resetAForm();
