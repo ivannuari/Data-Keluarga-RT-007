@@ -1924,7 +1924,11 @@
       $("#g-gang").value = g.gang || "";
       $("#g-aktif").checked = !!g.aktif;
       if (g.email === String(state.email || "").toLowerCase()) {
-        $("#g-peran").disabled = true; $("#g-aktif").disabled = true; $("#g-selfnote").hidden = false;
+        // Akun sendiri: boleh bertukar antara Ketua dan Wakil (keduanya admin penuh),
+        // tetapi tidak boleh diturunkan menjadi PIC atau dinonaktifkan.
+        setOptions($("#g-peran"), PERAN.slice(0, 2));
+        $("#g-peran").value = g.peran;
+        $("#g-aktif").disabled = true; $("#g-selfnote").hidden = false;
       }
       syncGangField();
     }
@@ -1941,7 +1945,9 @@
     var ed = state.gEdit;
     var email = ed ? ed.email : $("#g-email").value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = "Isi email yang valid."; return; }
-    var peran = ed && $("#g-peran").disabled ? ed.peran : $("#g-peran").value;
+    var peran = $("#g-peran").value;
+    var isSelf = !!ed && ed.email === String(state.email || "").toLowerCase();
+    if (isSelf && peran !== "ketua" && peran !== "wakil") { msg.textContent = "Akun Anda sendiri hanya bisa berperan Ketua RT atau Wakil Ketua RT."; return; }
     var gang = peran === "pic" ? $("#g-gang").value.trim().replace(/\s+/g, " ") : "";
     if (peran === "pic" && !gang) { msg.textContent = "Isi nama gang yang dipegang PIC, misalnya Gang Nuri. Nama ini tampil di setiap postingannya."; return; }
     var row = { nama: $("#g-nama").value.trim().replace(/\s+/g, " ") || null, peran: peran, gang: gang || null, aktif: ed && $("#g-aktif").disabled ? ed.aktif : $("#g-aktif").checked };
@@ -1957,6 +1963,7 @@
       resetGForm();
       $("#gPanel").hidden = true;
       flashTemp(wasEdit ? "Perubahan tersimpan." : "Pengurus ditambahkan. Pastikan akun login-nya sudah dibuat di Supabase.", "ok");
+      if (isSelf) await reloadProfil();
       await loadPengurus();
     } catch (e) {
       var c = e && e.code ? String(e.code) : "";
@@ -1967,6 +1974,14 @@
       btn.disabled = false;
       btn.textContent = state.gEdit ? "Simpan perubahan" : "Simpan";
     }
+  }
+  // Setelah peran akun sendiri berubah, muat ulang profil supaya sambutan dan label ikut berubah.
+  async function reloadProfil() {
+    try {
+      if (!sb.auth.getSession) return;
+      var r = await sb.auth.getSession();
+      await refreshAuth(r && r.data ? r.data.session : null);
+    } catch (e) { /* label akan diperbarui saat halaman dimuat ulang */ }
   }
   async function deletePengurus(g) {
     try {
