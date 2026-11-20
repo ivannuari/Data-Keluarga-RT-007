@@ -32,6 +32,9 @@
 
   <div id="flash" class="notice" role="status" hidden></div>
 
+  <!-- ===== PENGUMUMAN PENTING: tampil di atas semua halaman ===== -->
+  <section class="pinned" id="pinned" aria-label="Pengumuman penting" hidden></section>
+
   <section class="panel" id="loginPanel" hidden aria-labelledby="login-title">
     <h2 id="login-title">Masuk sebagai pengurus</h2>
     <form id="loginForm" class="login-form" novalidate>
@@ -62,9 +65,62 @@
           <p class="hint">Hasil rapat, kegiatan ronda, kerja bakti, dan pengumuman terbaru.</p>
         </div>
         <div class="group">
+          <button type="button" class="btn ghost" id="btn-aadd" hidden>Buat pengumuman</button>
           <button type="button" class="btn" id="btn-badd" hidden>Tulis berita</button>
         </div>
       </div>
+
+      <div id="a-error" class="notice err" hidden></div>
+
+      <section class="panel" id="aPanel" hidden aria-labelledby="aform-title">
+        <header>
+          <h2 id="aform-title">Buat pengumuman</h2>
+          <span class="hint">Tampil di bagian paling atas semua halaman.</span>
+        </header>
+        <form id="aform" novalidate autocomplete="off">
+          <div class="grid">
+            <div class="field wide">
+              <label for="a-judul">Judul</label>
+              <input type="text" id="a-judul" maxlength="150" placeholder="Contoh: Undangan rapat warga bulan Desember">
+            </div>
+            <div class="field">
+              <label for="a-tanggal">Tanggal acara (boleh dikosongkan)</label>
+              <input type="date" id="a-tanggal">
+            </div>
+            <div class="field">
+              <label for="a-jam">Jam (boleh dikosongkan)</label>
+              <input type="text" id="a-jam" maxlength="30" placeholder="Contoh: 19.30 WIB">
+            </div>
+            <div class="field wide">
+              <label for="a-tempat">Tempat (boleh dikosongkan)</label>
+              <input type="text" id="a-tempat" maxlength="150" placeholder="Contoh: Pos ronda Gang Mawar">
+            </div>
+            <div class="field wide">
+              <label for="a-isi">Isi pengumuman</label>
+              <textarea id="a-isi" maxlength="2000" rows="4" placeholder="Agenda, hal yang perlu dibawa, dan lain-lain."></textarea>
+              <span class="hint" id="a-count" aria-live="off">0 / 2000</span>
+            </div>
+            <div class="field">
+              <label for="a-sampai">Tampilkan sampai tanggal (boleh dikosongkan)</label>
+              <input type="date" id="a-sampai">
+              <span class="hint">Kosong: ikut tanggal acara. Jika tanggal acara juga kosong, tampil sampai dihapus.</span>
+            </div>
+          </div>
+          <div class="actions" style="margin-top: 16px;">
+            <button type="submit" class="btn" id="a-submit">Terbitkan</button>
+            <button type="button" class="btn ghost" id="a-cancel">Batal</button>
+            <span class="hint" id="a-msg" role="status"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="a-admin" hidden aria-labelledby="aadmin-title">
+        <header>
+          <h2 id="aadmin-title">Semua pengumuman</h2>
+          <span class="hint">Hanya terlihat oleh pengurus. Yang sudah berakhir tidak tampil lagi bagi warga.</span>
+        </header>
+        <ul class="plain" id="a-admin-list"></ul>
+      </section>
 
       <div id="b-error" class="notice err" hidden></div>
 
@@ -113,6 +169,140 @@
         <button type="button" class="btn ghost" id="b-more">Tampilkan berita yang lebih lama</button>
       </div>
     </div>
+  </section>
+
+  <!-- ===== LAPORAN WARGA ===== -->
+  <section class="tabpanel" id="tab-laporan" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Laporan warga</h2>
+        <p class="hint">Lampu jalan mati, selokan tersumbat, sampah menumpuk, dan hal lain yang perlu ditangani. Siapa pun boleh melapor, tanpa login.</p>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="btn-ladd">Buat laporan</button>
+      </div>
+    </div>
+
+    <div id="l-error" class="notice err" hidden></div>
+
+    <section class="panel" id="lPanel" hidden aria-labelledby="lform-title">
+      <header>
+        <h2 id="lform-title">Buat laporan</h2>
+        <span class="hint">Nama dan nomor telepon hanya terlihat oleh pengurus.</span>
+      </header>
+      <form id="lform" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field wide">
+            <label for="l-judul">Apa yang dilaporkan?</label>
+            <input type="text" id="l-judul" maxlength="120" placeholder="Contoh: Lampu jalan mati di depan pos ronda">
+          </div>
+          <div class="field">
+            <label for="l-kategori">Jenis laporan</label>
+            <select id="l-kategori"></select>
+          </div>
+          <div class="field">
+            <label for="l-tanggal">Tanggal kejadian</label>
+            <input type="date" id="l-tanggal">
+          </div>
+          <div class="field wide">
+            <label for="l-lokasi">Lokasi (gang dan nomor rumah terdekat)</label>
+            <input type="text" id="l-lokasi" maxlength="150" placeholder="Contoh: Gang Mawar, depan rumah nomor 7">
+          </div>
+          <div class="field wide">
+            <label for="l-isi">Keterangan</label>
+            <textarea id="l-isi" maxlength="2000" rows="4" placeholder="Ceritakan singkat apa yang terjadi."></textarea>
+            <span class="hint" id="l-count" aria-live="off">0 / 2000</span>
+          </div>
+          <div class="field wide">
+            <label for="l-foto">Foto (JPG, PNG, atau WebP, boleh dikosongkan)</label>
+            <input type="file" id="l-foto" accept="image/jpeg,image/png,image/webp">
+          </div>
+          <div class="field wide" id="l-preview-wrap" hidden>
+            <img id="l-preview" class="preview" alt="Pratinjau foto laporan">
+          </div>
+          <div class="field">
+            <label for="l-nama">Nama Anda (boleh dikosongkan)</label>
+            <input type="text" id="l-nama" maxlength="80" autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="l-kontak">Nomor telepon (boleh dikosongkan)</label>
+            <input type="text" id="l-kontak" maxlength="30" inputmode="tel" autocomplete="tel" placeholder="Agar pengurus bisa menghubungi Anda">
+          </div>
+          <div class="field hp" aria-hidden="true">
+            <label for="l-website">Jangan diisi</label>
+            <input type="text" id="l-website" tabindex="-1" autocomplete="off">
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 16px;">
+          <button type="submit" class="btn" id="l-submit">Kirim laporan</button>
+          <button type="button" class="btn ghost" id="l-cancel">Batal</button>
+          <span class="hint" id="l-msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div class="agechips" id="l-chips" role="group" aria-label="Filter status laporan"></div>
+    <div id="l-list"></div>
+    <div class="actions" id="l-more-wrap" hidden>
+      <button type="button" class="btn ghost" id="l-more">Tampilkan laporan yang lebih lama</button>
+    </div>
+  </section>
+
+  <!-- ===== INFO PENTING ===== -->
+  <section class="tabpanel" id="tab-info" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Info penting</h2>
+        <p class="hint">Nomor telepon pengurus, layanan darurat, dan petugas keamanan.</p>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="btn-kadd" hidden>Tambah kontak</button>
+      </div>
+    </div>
+
+    <div id="k-error" class="notice err" hidden></div>
+
+    <section class="panel" id="kPanel" hidden aria-labelledby="kform-title">
+      <header>
+        <h2 id="kform-title">Tambah kontak</h2>
+        <span class="hint">Hanya pengurus yang bisa mengubah daftar ini.</span>
+      </header>
+      <form id="kform" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field">
+            <label for="k-kategori">Kelompok</label>
+            <select id="k-kategori"></select>
+          </div>
+          <div class="field">
+            <label for="k-nama">Nama</label>
+            <input type="text" id="k-nama" maxlength="100" placeholder="Contoh: Bapak Ahmad">
+          </div>
+          <div class="field">
+            <label for="k-peran">Jabatan atau keterangan</label>
+            <input type="text" id="k-peran" maxlength="100" placeholder="Contoh: Ketua RT 007">
+          </div>
+          <div class="field">
+            <label for="k-telp">Nomor telepon</label>
+            <input type="text" id="k-telp" maxlength="30" inputmode="tel" placeholder="Contoh: 081234567890">
+          </div>
+          <div class="field wide">
+            <label for="k-catatan">Catatan (boleh dikosongkan)</label>
+            <input type="text" id="k-catatan" maxlength="300" placeholder="Contoh: Aktif 24 jam">
+          </div>
+          <div class="field">
+            <label for="k-urutan">Urutan tampil (angka kecil tampil lebih dulu)</label>
+            <input type="number" id="k-urutan" min="0" max="999" step="1" value="0">
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 16px;">
+          <button type="submit" class="btn" id="k-submit">Simpan</button>
+          <button type="button" class="btn ghost" id="k-cancel">Batal</button>
+          <span class="hint" id="k-msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div id="k-list"></div>
   </section>
 
   <section class="tabpanel" id="tab-keuangan" role="tabpanel" hidden>

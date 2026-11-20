@@ -299,6 +299,8 @@
     }
     // Data warga hanya dimuat untuk pengurus. Pengunjung biasa tidak pernah meminta tabel ini.
     if (state.admin) { if (!state.wLoaded) loadWarga(); } else { clearWarga(); }
+    // Pengurus membaca tabel laporan lengkap, warga membaca tampilan publik.
+    if (state.lSrc && state.lSrc !== (state.admin ? "laporan" : "laporan_publik")) { state.lManage = null; state.lDraft = null; loadLaporan(); }
     applyAuthUi();
     fillSettings();
     renderAll();
@@ -552,6 +554,8 @@
   // ---------- tab ----------
   var TABS = [
     { id: "beranda", label: "Beranda" },
+    { id: "laporan", label: "Laporan" },
+    { id: "info", label: "Info Penting" },
     { id: "keuangan", label: "Keuangan" },
     { id: "warga", label: "Data Warga", admin: true }
   ];
@@ -574,9 +578,12 @@
     var cur = activeTab();
     renderTabs(cur);
     TABS.forEach(function (t) { $("#tab-" + t.id).hidden = t.id !== cur; });
+    renderPinned();
     if (cur === "keuangan") renderFinance();
     else if (cur === "warga") renderWarga();
-    else renderBerita();
+    else if (cur === "laporan") renderLaporan();
+    else if (cur === "info") renderInfo();
+    else { renderBerita(); renderPengAdmin(); }
   }
 
   // ======================================================================
@@ -1188,6 +1195,602 @@
   }
 
   // ======================================================================
+  // TAHAP 3: PENGUMUMAN, INFO PENTING, LAPORAN WARGA
+  // ======================================================================
+  Object.assign(state, {
+    peng: [], pLoaded: false, pError: null, pEdit: null, pConfirmDel: null, pSaving: false,
+    kontak: [], kLoaded: false, kError: null, kEdit: null, kConfirmDel: null, kSaving: false,
+    lap: [], lLoaded: false, lError: null, lFilter: "all", lLimit: 15, lManage: null, lConfirmDel: null,
+    lDraft: null, lSaving: false, lSending: false, lSrc: null
+  });
+  var lSeq = 0;
+
+  function secErr(e, what, label) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "42P01" || c === "PGRST205" || c === "42501") {
+      return "Tabel " + what + " belum siap. Jalankan supabase-tahap3.sql di SQL Editor Supabase.";
+    }
+    return label + " belum bisa dimuat. " + (e && e.message ? "[" + (c ? c + ": " : "") + e.message + "]" : "Periksa koneksi internet.");
+  }
+  async function fetchRows(table, order) {
+    var out = [], from = 0, size = 1000;
+    for (;;) {
+      var q = sb.from(table).select("*");
+      q = order(q);
+      var r = await q.range(from, from + size - 1);
+      if (r.error) throw r.error;
+      out = out.concat(r.data);
+      if (r.data.length < size) break;
+      from += size;
+    }
+    return out;
+  }
+  function tsDate(ts) { return dateLabel(isoDate(new Date(ts))); }
+  function daysUntil(iso) {
+    var p = iso.split("-").map(Number), t = new Date();
+    var a = new Date(p[0], p[1] - 1, p[2]), b = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    return Math.round((a - b) / 86400000);
+  }
+  function phoneTel(v) { return String(v || "").replace(/[^\d+]/g, ""); }
+  function waLink(v) {
+    var d = digits(v);
+    if (/^0/.test(d)) d = "62" + d.slice(1);
+    return /^62\d{8,13}$/.test(d) ? "https://wa.me/" + d : null;
+  }
+  function validPhone(v) { var n = digits(v).length; return n >= 3 && n <= 16 && /^[\d\s+().-]+$/.test(v); }
+  function newId() { return window.crypto.randomUUID ? window.crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
+
+  // ---------- pengumuman ----------
+  async function loadPengumuman() {
+    if (!sb) return;
+    try {
+      state.peng = await fetchRows("pengumuman", function (q) {
+        return q.order("acara_tanggal", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
+      });
+      state.pError = null;
+    } catch (e) {
+      console.error("Gagal memuat pengumuman:", e);
+      state.pError = e || {};
+    }
+    state.pLoaded = true;
+    renderAll();
+  }
+  function pEnd(p) { return p.tampil_sampai || p.acara_tanggal || ""; }
+  function pActive(p) { var e = pEnd(p); return !e || e >= todayISO(); }
+  function pSorted(list) {
+    return list.slice().sort(function (a, b) {
+      if (a.acara_tanggal && b.acara_tanggal) return a.acara_tanggal < b.acara_tanggal ? -1 : a.acara_tanggal > b.acara_tanggal ? 1 : 0;
+      if (a.acara_tanggal) return -1;
+      if (b.acara_tanggal) return 1;
+      return String(b.created_at).localeCompare(String(a.created_at));
+    });
+  }
+  function pinEl(p) {
+    var n = p.acara_tanggal ? daysUntil(p.acara_tanggal) : null;
+    var when = n === null ? null : n === 0 ? "Hari ini" : n === 1 ? "Besok" : n > 1 ? n + " hari lagi" : null;
+    var meta = h("dl", { class: "pinmeta" });
+    [["Tanggal", p.acara_tanggal ? longDate(p.acara_tanggal) : ""], ["Jam", p.acara_jam], ["Tempat", p.tempat]].forEach(function (kv) {
+      if (kv[1]) meta.append(h("div", {}, h("dt", {}, kv[0]), h("dd", {}, kv[1])));
+    });
+    return h("article", { class: "pin" },
+      h("div", { class: "pinhead" },
+        h("span", { class: "pinlabel" }, "Pengumuman"),
+        when ? h("span", { class: "pinwhen" + (n === 0 ? " today" : "") }, when) : null),
+      h("h2", { class: "pintitle" }, p.judul),
+      meta.children.length ? meta : null,
+      p.isi ? h("p", { class: "pintext" }, p.isi) : null);
+  }
+  function renderPinned() {
+    var box = $("#pinned");
+    box.textContent = "";
+    var list = (state.pLoaded && !state.pError) ? pSorted(state.peng.filter(pActive)) : [];
+    list.forEach(function (p) { box.append(pinEl(p)); });
+    box.hidden = !list.length;
+  }
+  function renderPengAdmin() {
+    $("#btn-aadd").hidden = !state.admin;
+    var err = $("#a-error"), panel = $("#a-admin");
+    if (!state.admin) {
+      err.hidden = true; panel.hidden = true;
+      if (!$("#aPanel").hidden) { resetAForm(); $("#aPanel").hidden = true; }
+      return;
+    }
+    if (state.pError) { err.textContent = secErr(state.pError, "pengumuman", "Pengumuman"); err.hidden = false; } else err.hidden = true;
+    var ul = $("#a-admin-list");
+    ul.textContent = "";
+    var all = pSorted(state.peng);
+    panel.hidden = !state.pLoaded || !!state.pError;
+    if (!all.length) { ul.append(h("li", { class: "hint" }, "Belum ada pengumuman. Klik Buat pengumuman untuk menyematkan yang pertama.")); return; }
+    all.forEach(function (p) {
+      var act = h("div", { class: "rowact left" });
+      if (state.pConfirmDel === p.id) {
+        act.append(
+          h("button", { type: "button", class: "btn danger small", onclick: function () { deletePeng(p); } }, "Ya, hapus"),
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { state.pConfirmDel = null; renderPengAdmin(); } }, "Batal"));
+      } else {
+        act.append(
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { openAForm(p); } }, "Ubah"),
+          h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.pConfirmDel = p.id; renderPengAdmin(); } }, "Hapus"));
+      }
+      var sub = [];
+      if (p.acara_tanggal) sub.push(dateLabel(p.acara_tanggal) + (p.acara_jam ? ", " + p.acara_jam : ""));
+      var e = pEnd(p);
+      sub.push(!e ? "Tampil sampai dihapus" : pActive(p) ? "Tampil sampai " + dateLabel(e) : "Sudah berakhir");
+      ul.append(h("li", { class: "arow" + (pActive(p) ? "" : " ended") },
+        h("div", { class: "agrow" }, h("strong", {}, p.judul), h("span", { class: "hint" }, sub.join(" · "))), act));
+    });
+  }
+  function resetAForm() {
+    $("#aform").reset();
+    state.pEdit = null;
+    $("#aform-title").textContent = "Buat pengumuman";
+    $("#a-submit").textContent = "Terbitkan";
+    $("#a-count").textContent = "0 / 2000";
+  }
+  function openAForm(p) {
+    resetAForm();
+    $("#a-msg").textContent = "";
+    state.pConfirmDel = null;
+    if (p) {
+      state.pEdit = p;
+      $("#aform-title").textContent = "Ubah pengumuman";
+      $("#a-submit").textContent = "Simpan perubahan";
+      $("#a-judul").value = p.judul || "";
+      $("#a-tanggal").value = p.acara_tanggal || "";
+      $("#a-jam").value = p.acara_jam || "";
+      $("#a-tempat").value = p.tempat || "";
+      $("#a-isi").value = p.isi || "";
+      $("#a-sampai").value = p.tampil_sampai || "";
+      $("#a-count").textContent = (p.isi || "").length + " / 2000";
+    }
+    $("#aPanel").hidden = false;
+    renderPengAdmin();
+    $("#aPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#a-judul").focus();
+  }
+  function closeAForm() { resetAForm(); $("#aPanel").hidden = true; $("#a-msg").textContent = ""; renderPengAdmin(); }
+  async function onPengSubmit(ev) {
+    ev.preventDefault();
+    if (state.pSaving || !sb || !state.admin) return;
+    var msg = $("#a-msg");
+    var judul = $("#a-judul").value.trim().replace(/\s+/g, " ");
+    var tanggal = $("#a-tanggal").value, sampai = $("#a-sampai").value;
+    if (!judul) { msg.textContent = "Isi judul pengumuman."; return; }
+    var end = sampai || tanggal;
+    if (end && end < todayISO()) { msg.textContent = "Tanggal tampil sudah lewat, jadi pengumuman tidak akan terlihat oleh warga."; return; }
+    var row = {
+      judul: judul,
+      isi: $("#a-isi").value.replace(/\r\n/g, "\n").trim(),
+      acara_tanggal: tanggal || null,
+      acara_jam: $("#a-jam").value.trim() || null,
+      tempat: $("#a-tempat").value.trim() || null,
+      tampil_sampai: sampai || null
+    };
+    state.pSaving = true;
+    var btn = $("#a-submit");
+    btn.disabled = true; btn.textContent = "Menyimpan..."; msg.textContent = "";
+    try {
+      var ed = state.pEdit;
+      var r = ed ? await sb.from("pengumuman").update(row).eq("id", ed.id).select()
+                 : await sb.from("pengumuman").insert(row).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      var wasEdit = !!ed;
+      resetAForm();
+      $("#aPanel").hidden = true;
+      flashTemp(wasEdit ? "Perubahan tersimpan." : "Pengumuman diterbitkan.", "ok");
+      await loadPengumuman();
+    } catch (e) {
+      var pc = e && e.code ? String(e.code) : "";
+      msg.textContent = (pc === "42P01" || pc === "PGRST205") ? "Tabel pengumuman belum dibuat. Jalankan supabase-tahap3.sql di SQL Editor Supabase."
+        : errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      state.pSaving = false;
+      btn.disabled = false;
+      btn.textContent = state.pEdit ? "Simpan perubahan" : "Terbitkan";
+    }
+  }
+  async function deletePeng(p) {
+    try {
+      var r = await sb.from("pengumuman").delete().eq("id", p.id).select("id");
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      state.pConfirmDel = null;
+      if (state.pEdit && state.pEdit.id === p.id) closeAForm();
+      flashTemp("Pengumuman dihapus.", "ok");
+      await loadPengumuman();
+    } catch (e) { flash(errText(e, "Gagal menghapus. Coba lagi."), "err"); }
+  }
+
+  // ---------- info penting ----------
+  var KCATS = [["darurat", "Darurat"], ["pengurus", "Pengurus RT dan RW"], ["keamanan", "Keamanan"], ["lainnya", "Lainnya"]];
+  async function loadKontak() {
+    if (!sb) return;
+    try {
+      state.kontak = await fetchRows("kontak", function (q) { return q.order("urutan", { ascending: true }).order("nama", { ascending: true }); });
+      state.kError = null;
+    } catch (e) {
+      console.error("Gagal memuat kontak:", e);
+      state.kError = e || {};
+    }
+    state.kLoaded = true;
+    renderAll();
+  }
+  function kRow(k) {
+    var tel = phoneTel(k.telepon), wa = waLink(k.telepon);
+    var links = h("div", { class: "rowact left" },
+      h("a", { class: "btn small", href: "tel:" + tel }, "Telepon"),
+      wa ? h("a", { class: "btn ghost small", href: wa, target: "_blank", rel: "noopener" }, "WhatsApp") : null);
+    if (state.admin) {
+      if (state.kConfirmDel === k.id) {
+        links.append(
+          h("button", { type: "button", class: "btn danger small", onclick: function () { deleteKontak(k); } }, "Ya, hapus"),
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { state.kConfirmDel = null; renderInfo(); } }, "Batal"));
+      } else {
+        links.append(
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { openKForm(k); } }, "Ubah"),
+          h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.kConfirmDel = k.id; renderInfo(); } }, "Hapus"));
+      }
+    }
+    return h("li", { class: "kcard" + (state.kEdit && state.kEdit.id === k.id ? " editing" : "") },
+      h("div", { class: "kmain" },
+        h("strong", { class: "kname" }, k.nama),
+        k.peran ? h("span", { class: "kperan" }, k.peran) : null,
+        h("span", { class: "kphone num" }, k.telepon),
+        k.catatan ? h("span", { class: "hint" }, k.catatan) : null),
+      links);
+  }
+  function renderInfo() {
+    $("#btn-kadd").hidden = !state.admin;
+    if (!state.admin && !$("#kPanel").hidden) { resetKForm(); $("#kPanel").hidden = true; }
+    var wrap = $("#k-list"), err = $("#k-error");
+    wrap.textContent = "";
+    if (!sb) { err.hidden = true; wrap.append(h("p", { class: "empty card" }, "Portal belum terhubung ke Supabase. Isi file config.js sesuai panduan di README.")); return; }
+    if (state.kError) { err.textContent = secErr(state.kError, "kontak", "Info penting"); err.hidden = false; return; }
+    err.hidden = true;
+    if (!state.kLoaded) { wrap.append(h("p", { class: "empty card" }, "Memuat info penting...")); return; }
+    if (!state.kontak.length) {
+      wrap.append(h("p", { class: "empty card" }, state.admin ? "Belum ada kontak. Klik Tambah kontak untuk mengisi nomor ketua RT, ambulans, dan lainnya." : "Belum ada info yang dipublikasikan."));
+      return;
+    }
+    KCATS.forEach(function (c) {
+      var items = state.kontak.filter(function (k) { return (KCATS.some(function (x) { return x[0] === k.kategori; }) ? k.kategori : "lainnya") === c[0]; });
+      if (!items.length) return;
+      var ul = h("ul", { class: "plain kgrid" });
+      items.forEach(function (k) { ul.append(kRow(k)); });
+      wrap.append(h("section", { class: "kgroup" }, h("h3", {}, c[1]), ul));
+    });
+  }
+  function resetKForm() {
+    $("#kform").reset();
+    state.kEdit = null;
+    setOptions($("#k-kategori"), KCATS);
+    $("#kform-title").textContent = "Tambah kontak";
+    $("#k-submit").textContent = "Simpan";
+    $("#k-urutan").value = "0";
+  }
+  function openKForm(k) {
+    resetKForm();
+    $("#k-msg").textContent = "";
+    state.kConfirmDel = null;
+    if (k) {
+      state.kEdit = k;
+      $("#kform-title").textContent = "Ubah kontak";
+      $("#k-submit").textContent = "Simpan perubahan";
+      $("#k-kategori").value = k.kategori;
+      $("#k-nama").value = k.nama || "";
+      $("#k-peran").value = k.peran || "";
+      $("#k-telp").value = k.telepon || "";
+      $("#k-catatan").value = k.catatan || "";
+      $("#k-urutan").value = String(k.urutan || 0);
+    }
+    $("#kPanel").hidden = false;
+    renderInfo();
+    $("#kPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#k-nama").focus();
+  }
+  function closeKForm() { resetKForm(); $("#kPanel").hidden = true; $("#k-msg").textContent = ""; renderInfo(); }
+  async function onKontakSubmit(ev) {
+    ev.preventDefault();
+    if (state.kSaving || !sb || !state.admin) return;
+    var msg = $("#k-msg");
+    var nama = $("#k-nama").value.trim().replace(/\s+/g, " "), telp = $("#k-telp").value.trim();
+    if (!nama) { msg.textContent = "Isi nama."; return; }
+    if (!telp) { msg.textContent = "Isi nomor telepon."; return; }
+    if (!validPhone(telp)) { msg.textContent = "Nomor telepon hanya boleh berisi angka, spasi, tanda + dan -, sepanjang 3 sampai 16 angka."; return; }
+    var urutan = parseInt($("#k-urutan").value, 10);
+    var row = {
+      kategori: $("#k-kategori").value, nama: nama, peran: $("#k-peran").value.trim() || null,
+      telepon: telp, catatan: $("#k-catatan").value.trim() || null, urutan: isNaN(urutan) ? 0 : Math.max(0, Math.min(999, urutan))
+    };
+    state.kSaving = true;
+    var btn = $("#k-submit");
+    btn.disabled = true; btn.textContent = "Menyimpan..."; msg.textContent = "";
+    try {
+      var ed = state.kEdit;
+      var r = ed ? await sb.from("kontak").update(row).eq("id", ed.id).select()
+                 : await sb.from("kontak").insert(row).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      var wasEdit = !!ed;
+      resetKForm();
+      $("#kPanel").hidden = true;
+      flashTemp(wasEdit ? "Perubahan tersimpan." : "Kontak ditambahkan.", "ok");
+      await loadKontak();
+    } catch (e) {
+      msg.textContent = errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      state.kSaving = false;
+      btn.disabled = false;
+      btn.textContent = state.kEdit ? "Simpan perubahan" : "Simpan";
+    }
+  }
+  async function deleteKontak(k) {
+    try {
+      var r = await sb.from("kontak").delete().eq("id", k.id).select("id");
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      state.kConfirmDel = null;
+      if (state.kEdit && state.kEdit.id === k.id) closeKForm();
+      flashTemp("Kontak dihapus.", "ok");
+      await loadKontak();
+    } catch (e) { flash(errText(e, "Gagal menghapus. Coba lagi."), "err"); }
+  }
+
+  // ---------- laporan warga ----------
+  var LKAT = [["jalan", "Jalan rusak"], ["lampu", "Lampu jalan"], ["sampah", "Sampah"], ["saluran", "Saluran air atau selokan"],
+              ["keamanan", "Keamanan"], ["fasilitas", "Fasilitas umum"], ["lainnya", "Lainnya"]];
+  var LSTAT = [["dilaporkan", "Dilaporkan"], ["dikerjakan", "Dikerjakan"], ["selesai", "Selesai"]];
+  var LFOTO_DIR = "laporan/";
+  function labelOf(list, id) { var f = list.filter(function (x) { return x[0] === id; })[0]; return f ? f[1] : id; }
+
+  async function loadLaporan() {
+    if (!sb) return;
+    var seq = ++lSeq;
+    var table = state.admin ? "laporan" : "laporan_publik";
+    state.lSrc = table;
+    var rows = null, error = null;
+    try {
+      rows = await fetchRows(table, function (q) { return q.order("created_at", { ascending: false }); });
+    } catch (e) {
+      console.error("Gagal memuat laporan:", e);
+      error = e || {};
+    }
+    if (seq !== lSeq) return;
+    if (error) state.lError = error; else { state.lap = rows; state.lError = null; }
+    state.lLoaded = true;
+    renderAll();
+  }
+  function lErrText(e) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "P0001" && e.message) return e.message;
+    if (c === "42P01" || c === "PGRST205") return "Fitur laporan belum diaktifkan oleh pengurus.";
+    var m = e && e.message ? String(e.message).toLowerCase() : "";
+    if (m.indexOf("exceeded") >= 0 || String(c) === "413") return "Foto terlalu besar. Pilih foto yang lebih kecil.";
+    return "Gagal mengirim laporan. Periksa koneksi internet lalu coba lagi.";
+  }
+  function renderLapChips() {
+    var box = $("#l-chips");
+    box.textContent = "";
+    var counts = { all: state.lap.length };
+    LSTAT.forEach(function (s) { counts[s[0]] = state.lap.filter(function (r) { return r.status === s[0]; }).length; });
+    [["all", "Semua"]].concat(LSTAT).forEach(function (s) {
+      box.append(h("button", {
+        type: "button", class: "chipbtn", "aria-pressed": String(state.lFilter === s[0]),
+        onclick: function () { state.lFilter = s[0]; state.lLimit = 15; renderLaporan(); }
+      }, s[1], h("span", { class: "n" }, String(counts[s[0]]))));
+    });
+  }
+  function stepsEl(r) {
+    var idx = { dilaporkan: 0, dikerjakan: 1, selesai: 2 }[r.status];
+    var ol = h("ol", { class: "steps", "aria-label": "Perkembangan laporan" });
+    [["Dilaporkan", r.created_at], ["Dikerjakan", r.dikerjakan_pada], ["Selesai", r.selesai_pada]].forEach(function (s, i) {
+      ol.append(h("li", { class: i < idx ? "done" : i === idx ? "now" : "" },
+        h("span", { class: "stepname" }, s[0]),
+        h("span", { class: "stepdate" }, s[1] ? tsDate(s[1]) : "-")));
+    });
+    return ol;
+  }
+  function manageEl(r) {
+    var d = state.lDraft && state.lDraft.id === r.id ? state.lDraft : { id: r.id, status: r.status, note: r.catatan_pengurus || "" };
+    state.lDraft = d;
+    var sel = h("select", { id: "lm-status" });
+    LSTAT.forEach(function (s) { sel.append(h("option", { value: s[0] }, s[1])); });
+    sel.value = d.status;
+    sel.addEventListener("input", function () { d.status = sel.value; });
+    var note = h("textarea", { id: "lm-note", rows: "3", maxlength: "1000", placeholder: "Contoh: Sudah dihubungi PLN, perbaikan dijadwalkan Senin." });
+    note.value = d.note;
+    note.addEventListener("input", function () { d.note = note.value; });
+    var act = h("div", { class: "rowact left" },
+      h("button", { type: "button", class: "btn small", id: "lm-save", onclick: function () { saveLaporan(r); } }, "Simpan status"),
+      h("button", { type: "button", class: "btn ghost small", onclick: function () { toggleTampil(r); } }, r.tampil ? "Sembunyikan dari warga" : "Tampilkan lagi"));
+    if (state.lConfirmDel === r.id) {
+      act.append(
+        h("button", { type: "button", class: "btn danger small", onclick: function () { deleteLaporan(r); } }, "Ya, hapus laporan"),
+        h("button", { type: "button", class: "btn ghost small", onclick: function () { state.lConfirmDel = null; renderLaporan(); } }, "Batal"));
+    } else {
+      act.append(h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.lConfirmDel = r.id; renderLaporan(); } }, "Hapus"));
+    }
+    return h("div", { class: "manage" },
+      h("div", { class: "field" }, h("label", { for: "lm-status" }, "Status"), sel),
+      h("div", { class: "field" }, h("label", { for: "lm-note" }, "Catatan untuk warga (tampil di bawah laporan)"), note),
+      act);
+  }
+  function laporEl(r) {
+    var body = h("div", { class: "postbody" },
+      h("div", { class: "lhead" },
+        h("span", { class: "status st-" + r.status }, labelOf(LSTAT, r.status)),
+        h("span", { class: "chip" }, labelOf(LKAT, r.kategori)),
+        state.admin && r.tampil === false ? h("span", { class: "chip alt" }, "Disembunyikan") : null),
+      h("h3", {}, r.judul),
+      h("p", { class: "postdate" }, "Kejadian " + longDate(r.tanggal_kejadian) + (r.lokasi ? " · " + r.lokasi : "")),
+      r.isi ? h("p", { class: "posttext" }, r.isi) : null,
+      stepsEl(r),
+      r.catatan_pengurus ? h("p", { class: "pnote" }, h("strong", {}, "Catatan pengurus: "), r.catatan_pengurus) : null);
+    if (state.admin) {
+      var who = [r.nama_pelapor, r.kontak_pelapor].filter(Boolean).join(" · ");
+      body.append(h("p", { class: "hint" }, "Pelapor (hanya terlihat pengurus): " + (who || "tidak dicantumkan")));
+      if (state.lManage === r.id) body.append(manageEl(r));
+      body.append(h("div", { class: "rowact left" },
+        h("button", {
+          type: "button", class: "btn ghost small", "aria-expanded": String(state.lManage === r.id),
+          onclick: function () { state.lManage = state.lManage === r.id ? null : r.id; state.lConfirmDel = null; state.lDraft = null; renderLaporan(); }
+        }, state.lManage === r.id ? "Tutup" : "Kelola")));
+    }
+    var card = h("article", { class: "postcard" + (state.lManage === r.id ? " editing" : "") });
+    if (r.foto_path) {
+      card.append(h("button", {
+        type: "button", class: "postimg", "aria-label": "Perbesar foto: " + r.judul,
+        onclick: function (ev) { openPhoto({ foto_path: r.foto_path, judul: r.judul }, ev.currentTarget); }
+      }, h("img", { src: proofUrl(r.foto_path), alt: "", loading: "lazy" })));
+    }
+    card.append(body);
+    return h("li", { class: "post lap" }, card);
+  }
+  function renderLaporan() {
+    var wrap = $("#l-list"), err = $("#l-error");
+    wrap.textContent = "";
+    $("#l-more-wrap").hidden = true;
+    $("#l-chips").hidden = true;
+    if (!sb) { err.hidden = true; wrap.append(h("p", { class: "empty card" }, "Portal belum terhubung ke Supabase. Isi file config.js sesuai panduan di README.")); $("#btn-ladd").hidden = true; return; }
+    $("#btn-ladd").hidden = false;
+    if (state.lError) { err.textContent = secErr(state.lError, "laporan", "Laporan"); err.hidden = false; return; }
+    err.hidden = true;
+    if (!state.lLoaded) { wrap.append(h("p", { class: "empty card" }, "Memuat laporan...")); return; }
+    if (!state.lap.length) { wrap.append(h("p", { class: "empty card" }, "Belum ada laporan. Klik Buat laporan bila ada yang perlu ditangani.")); return; }
+    $("#l-chips").hidden = false;
+    renderLapChips();
+    var rows = state.lap.filter(function (r) { return state.lFilter === "all" || r.status === state.lFilter; });
+    if (!rows.length) { wrap.append(h("p", { class: "empty card" }, "Tidak ada laporan dengan status ini.")); return; }
+    var ol = h("ol", { class: "timeline" });
+    rows.slice(0, state.lLimit).forEach(function (r) { ol.append(laporEl(r)); });
+    wrap.append(ol);
+    $("#l-more-wrap").hidden = rows.length <= state.lLimit;
+  }
+
+  // ---------- admin: kelola laporan ----------
+  async function patchLaporan(r, patch, okMsg) {
+    if (state.lSaving || !state.admin) return;
+    state.lSaving = true;
+    try {
+      var res = await sb.from("laporan").update(patch).eq("id", r.id).select();
+      if (res.error) throw res.error;
+      if (!res.data || !res.data.length) throw { code: "42501" };
+      flashTemp(okMsg, "ok");
+      state.lDraft = null;
+      await loadLaporan();
+    } catch (e) {
+      flash(errText(e, "Gagal menyimpan. Coba lagi."), "err");
+    } finally { state.lSaving = false; }
+  }
+  function saveLaporan(r) {
+    var d = state.lDraft && state.lDraft.id === r.id ? state.lDraft : { status: r.status, note: r.catatan_pengurus || "" };
+    return patchLaporan(r, { status: d.status, catatan_pengurus: d.note.trim() || null }, "Laporan diperbarui.");
+  }
+  function toggleTampil(r) {
+    return patchLaporan(r, { tampil: !r.tampil }, r.tampil ? "Laporan disembunyikan dari warga." : "Laporan ditampilkan kembali.");
+  }
+  async function deleteLaporan(r) {
+    try {
+      var res = await sb.from("laporan").delete().eq("id", r.id).select("id");
+      if (res.error) throw res.error;
+      if (!res.data || !res.data.length) throw { code: "42501" };
+      if (r.foto_path) sb.storage.from(BUCKET).remove([r.foto_path]);
+      state.lConfirmDel = null; state.lManage = null; state.lDraft = null;
+      flashTemp("Laporan dihapus.", "ok");
+      await loadLaporan();
+    } catch (e) { flash(errText(e, "Gagal menghapus. Coba lagi."), "err"); }
+  }
+
+  // ---------- warga: kirim laporan ----------
+  var lPreviewUrl = null;
+  function setLPreview(src) {
+    var w = $("#l-preview-wrap"), img = $("#l-preview");
+    if (lPreviewUrl) { URL.revokeObjectURL(lPreviewUrl); lPreviewUrl = null; }
+    if (!src) { img.removeAttribute("src"); w.hidden = true; return; }
+    img.src = src; w.hidden = false;
+  }
+  function resetLForm() {
+    $("#lform").reset();
+    setOptions($("#l-kategori"), LKAT);
+    $("#l-tanggal").value = todayISO();
+    $("#l-tanggal").max = todayISO();
+    $("#l-count").textContent = "0 / 2000";
+    setLPreview(null);
+  }
+  function openLForm() {
+    resetLForm();
+    $("#l-msg").textContent = "";
+    $("#lPanel").hidden = false;
+    $("#lPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#l-judul").focus();
+  }
+  function closeLForm() { resetLForm(); $("#lPanel").hidden = true; $("#l-msg").textContent = ""; }
+  function lastSent() { try { return Number(localStorage.getItem("laporan_terakhir")) || 0; } catch (e) { return 0; } }
+  function markSent() { try { localStorage.setItem("laporan_terakhir", String(Date.now())); } catch (e) { /* abaikan */ } }
+  async function onLaporSubmit(ev) {
+    ev.preventDefault();
+    if (state.lSending || !sb) return;
+    var msg = $("#l-msg");
+    if ($("#l-website").value) { closeLForm(); flashTemp("Laporan terkirim. Terima kasih.", "ok"); return; } // jebakan untuk robot
+    var judul = $("#l-judul").value.trim().replace(/\s+/g, " ");
+    var lokasi = $("#l-lokasi").value.trim().replace(/\s+/g, " ");
+    var tanggal = $("#l-tanggal").value;
+    var kontak = $("#l-kontak").value.trim();
+    if (!judul) { msg.textContent = "Isi apa yang dilaporkan."; return; }
+    if (!lokasi) { msg.textContent = "Isi lokasi kejadian supaya pengurus mudah menemukannya."; return; }
+    if (!tanggal) { msg.textContent = "Isi tanggal kejadian."; return; }
+    if (tanggal > todayISO()) { msg.textContent = "Tanggal kejadian tidak boleh di masa depan."; return; }
+    if (kontak && !validPhone(kontak)) { msg.textContent = "Nomor telepon tidak valid. Kosongkan jika tidak ingin dihubungi."; return; }
+    if (Date.now() - lastSent() < 60000) { msg.textContent = "Mohon tunggu satu menit sebelum mengirim laporan berikutnya."; return; }
+    var file = $("#l-foto").files[0], type = null;
+    if (file) {
+      type = fileType(file);
+      if (!type || type === "application/pdf") { msg.textContent = "Foto harus berformat JPG, PNG, atau WebP. Foto HEIC dari iPhone perlu diubah ke JPG."; return; }
+    }
+    state.lSending = true;
+    var btn = $("#l-submit");
+    btn.disabled = true; btn.textContent = "Mengirim..."; msg.textContent = "";
+    var uploadedPath = null;
+    try {
+      var foto = { foto_path: null, foto_tipe: null };
+      if (file) {
+        var prep = await prepareFile(file, type);
+        if (prep.blob.size > 5 * 1024 * 1024) { msg.textContent = "Foto terlalu besar. Pilih foto yang lebih kecil dari 5 MB."; return; }
+        uploadedPath = LFOTO_DIR + newId() + "." + TYPE_EXT[prep.type];
+        var up = await sb.storage.from(BUCKET).upload(uploadedPath, prep.blob, { contentType: prep.type, upsert: false });
+        if (up.error) throw up.error;
+        foto = { foto_path: uploadedPath, foto_tipe: prep.type };
+      }
+      var row = Object.assign({
+        kategori: $("#l-kategori").value, judul: judul, isi: $("#l-isi").value.replace(/\r\n/g, "\n").trim(),
+        lokasi: lokasi, tanggal_kejadian: tanggal,
+        nama_pelapor: $("#l-nama").value.trim() || null, kontak_pelapor: kontak || null
+      }, foto);
+      var r = await sb.from("laporan").insert(row); // tanpa .select(): warga tidak boleh membaca tabel aslinya
+      if (r.error) throw r.error;
+      uploadedPath = null;
+      markSent();
+      closeLForm();
+      state.lFilter = "all";
+      flashTemp("Laporan terkirim. Terima kasih, pengurus akan menindaklanjuti.", "ok");
+      await loadLaporan();
+    } catch (e) {
+      if (uploadedPath) sb.storage.from(BUCKET).remove([uploadedPath]);
+      msg.textContent = lErrText(e);
+    } finally {
+      state.lSending = false;
+      btn.disabled = false;
+      btn.textContent = "Kirim laporan";
+    }
+  }
+
+  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); }
+  function tahap3Idle() {
+    return $("#aPanel").hidden && $("#kPanel").hidden && $("#lPanel").hidden && !state.lSending && !state.pSaving && !state.kSaving && !state.lManage;
+  }
+
+  // ======================================================================
   // PEMASANGAN EVENT
   // ======================================================================
   $("#period").addEventListener("change", function (e) { state.period = e.target.value; state.periodChosen = true; state.confirmDel = null; renderAll(); });
@@ -1243,10 +1846,32 @@
   $("#btn-wpdf").addEventListener("click", exportWargaPdf);
   $("#btn-wcsv").addEventListener("click", exportWargaCsv);
 
+  // pengumuman, info penting, laporan
+  $("#btn-aadd").addEventListener("click", function () { openAForm(null); });
+  $("#aform").addEventListener("submit", onPengSubmit);
+  $("#a-cancel").addEventListener("click", closeAForm);
+  $("#a-isi").addEventListener("input", function (e) { $("#a-count").textContent = e.target.value.length + " / 2000"; });
+  $("#btn-kadd").addEventListener("click", function () { openKForm(null); });
+  $("#kform").addEventListener("submit", onKontakSubmit);
+  $("#k-cancel").addEventListener("click", closeKForm);
+  $("#btn-ladd").addEventListener("click", openLForm);
+  $("#lform").addEventListener("submit", onLaporSubmit);
+  $("#l-cancel").addEventListener("click", closeLForm);
+  $("#l-more").addEventListener("click", function () { state.lLimit += 15; renderLaporan(); });
+  $("#l-isi").addEventListener("input", function (e) { $("#l-count").textContent = e.target.value.length + " / 2000"; });
+  $("#l-foto").addEventListener("change", function (e) {
+    var f = e.target.files[0];
+    if (f && /^image\//.test(f.type)) { var u = URL.createObjectURL(f); setLPreview(null); lPreviewUrl = u; $("#l-preview").src = u; $("#l-preview-wrap").hidden = false; }
+    else setLPreview(null);
+  });
+
   // ---------- mulai ----------
   resetForm(false);
   resetBForm();
   resetWForm(false);
+  resetAForm();
+  resetKForm();
+  resetLForm();
   renderAll();
 
   if (!sb) {
@@ -1262,7 +1887,9 @@
   });
   loadAll();
   loadBerita();
+  loadTahap3();
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible" && !state.saving && !state.editing && !state.bSaving && !state.bEdit) { loadAll(); loadBerita(); }
+    if (document.visibilityState === "visible" && tahap3Idle()) loadTahap3();
   });
 })();

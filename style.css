@@ -259,3 +259,51 @@ table.wide { min-width: 900px; }
 .chipbtn[aria-pressed="true"] { background: var(--soft); border-color: var(--accent-text); color: var(--accent-text); }
 .chipbtn[aria-pressed="true"] .n { color: inherit; }
 .chipbtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+/* ===== Tahap 3: pengumuman, info penting, laporan ===== */
+ul.plain { list-style: none; margin: 0; padding: 0; }
+.pinned { display: flex; flex-direction: column; gap: 12px; }
+.pin {
+  background: var(--y); color: var(--btn-fg); border: 2px solid var(--o); border-radius: 8px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.pinhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pinlabel { font-size: 0.74rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.pinwhen { font-size: 0.78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--btn-fg); color: var(--y); }
+.pinwhen.today { background: var(--out); color: #fff; }
+.pintitle { font-size: 1.3rem; line-height: 1.25; }
+.pinmeta { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0; }
+.pinmeta dt { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8; }
+.pinmeta dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.pintext { margin: 0; white-space: pre-line; overflow-wrap: anywhere; max-width: 70ch; }
+
+.arow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
+.arow:first-child { border-top: 0; }
+.arow.ended { opacity: 0.65; }
+.agrow { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.arow .rowact.left { margin-top: 0; }
+
+.kgroup { display: flex; flex-direction: column; gap: 10px; }
+.kgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 12px; }
+.kcard { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; min-width: 0; }
+.kcard.editing { border-color: var(--accent-text); border-width: 2px; }
+.kmain { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.kname { font-size: 1.05rem; }
+.kperan { color: var(--muted); }
+.kphone { font-size: 1.2rem; font-weight: 700; }
+
+.lhead { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.status { font-size: 0.78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.status.st-dilaporkan { background: var(--out-bg); color: var(--out); }
+.status.st-dikerjakan { background: var(--soft); color: var(--accent-text); }
+.status.st-selesai { background: var(--in-bg); color: var(--in); }
+.lap .postbody { width: 100%; }
+.steps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.steps li { border-top: 4px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; font-size: 0.8rem; color: var(--muted); }
+.steps li.done { border-top-color: var(--in); color: var(--fg); }
+.steps li.now { border-top-color: var(--o); color: var(--fg); }
+.stepname { font-weight: 700; }
+.pnote { background: var(--soft); border-left: 4px solid var(--o); padding: 8px 12px; border-radius: 4px; margin: 0; width: 100%; white-space: pre-line; overflow-wrap: anywhere; }
+.manage { width: 100%; display: flex; flex-direction: column; gap: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.grid .field.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 520px) { .steps { gap: 4px; } .pintitle { font-size: 1.15rem; } }
