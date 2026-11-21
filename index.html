@@ -321,6 +321,7 @@
     </section>
 
     <div id="k-list"></div>
+    <div id="k-ads"></div>
   </section>
 
   <section class="tabpanel" id="tab-keuangan" role="tabpanel" hidden>
@@ -659,6 +660,97 @@
     </section>
 
     <div id="p-board" class="board"></div>
+  </section>
+
+  <!-- ===== IKLAN WARGA (Ketua dan Wakil) ===== -->
+  <section class="tabpanel" id="tab-iklan" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Iklan warga</h2>
+        <p class="hint">Iklan usaha warga RT. Tayang acak di antara berita dan di Info Penting hanya bila aktif, sudah dibayar, dan dalam masa tayang.</p>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="btn-iadd">Tambah iklan</button>
+      </div>
+    </div>
+    <div id="i-error" class="notice err" hidden></div>
+    <p class="hint" id="i-summary" role="status"></p>
+
+    <section class="panel" id="iPanel" hidden aria-labelledby="iform-title">
+      <header>
+        <h2 id="iform-title">Tambah iklan</h2>
+        <span class="hint">Tarif yang disepakati: Rp 50.000 per bulan. Catat pembayarannya sebagai pemasukan di tab Keuangan.</span>
+      </header>
+      <form id="iform" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field">
+            <label for="i-nama">Nama usaha</label>
+            <input type="text" id="i-nama" maxlength="80" placeholder="Contoh: Kue Basah Bu Ani">
+          </div>
+          <div class="field">
+            <label for="i-wa">Nomor WhatsApp penjual</label>
+            <input type="text" id="i-wa" maxlength="20" inputmode="tel" placeholder="Contoh: 081234567890">
+          </div>
+          <div class="field wide">
+            <label for="i-deskripsi">Deskripsi singkat</label>
+            <textarea id="i-deskripsi" maxlength="400" rows="4" placeholder="Contoh: Kue basah dan snack box, pesan sehari sebelumnya. Antar gratis dalam RT."></textarea>
+          </div>
+          <div class="field">
+            <label for="i-foto">Foto produk atau banner (JPG, PNG, atau WebP)</label>
+            <input type="file" id="i-foto" accept="image/jpeg,image/png,image/webp">
+          </div>
+          <div class="field" id="i-preview-wrap" hidden>
+            <img id="i-preview" class="preview" alt="Pratinjau foto iklan">
+            <label class="check" id="i-hapusfoto-wrap" for="i-hapusfoto" hidden>
+              <input type="checkbox" id="i-hapusfoto">
+              <span>Hapus foto yang sekarang</span>
+            </label>
+          </div>
+          <div class="field">
+            <label for="i-mulai">Tanggal mulai</label>
+            <input type="date" id="i-mulai">
+          </div>
+          <div class="field">
+            <label for="i-berakhir">Tanggal berakhir</label>
+            <input type="date" id="i-berakhir">
+          </div>
+          <div class="field">
+            <label for="i-posisi">Posisi tayang</label>
+            <select id="i-posisi"></select>
+          </div>
+          <div class="field">
+            <label for="i-tarif">Tarif (Rp)</label>
+            <input type="number" id="i-tarif" min="0" step="1000" value="50000">
+          </div>
+          <div class="field">
+            <label for="i-pemilik">Nama warga pemilik usaha (tidak ditampilkan ke publik)</label>
+            <input type="text" id="i-pemilik" maxlength="80" placeholder="Contoh: Ibu Ani">
+          </div>
+          <div class="field">
+            <label for="i-rumah">Nomor rumah (tidak ditampilkan ke publik)</label>
+            <input type="text" id="i-rumah" maxlength="20" placeholder="Contoh: 12A">
+          </div>
+          <div class="field">
+            <label class="check" for="i-aktif"><input type="checkbox" id="i-aktif" checked><span>Aktif</span></label>
+          </div>
+          <div class="field">
+            <label class="check" for="i-dibayar"><input type="checkbox" id="i-dibayar"><span>Sudah dibayar</span></label>
+            <span class="hint">Iklan hanya tayang setelah dibayar.</span>
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 16px;">
+          <button type="submit" class="btn" id="i-submit">Simpan iklan</button>
+          <button type="button" class="btn ghost" id="i-cancel">Batal</button>
+          <span class="hint" id="i-msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div id="i-list"></div>
+    <details class="panel howto">
+      <summary>Arti angka statistik</summary>
+      <p><strong>Tayangan:</strong> iklan terlihat di layar warga minimal 1 detik (paling banyak sekali per kunjungan). <strong>Klik iklan:</strong> warga membuka detail atau memperbesar foto. <strong>Klik hubungi penjual:</strong> warga menekan tombol WhatsApp. Angka ini bukti minat, bukan jumlah pembelian. Tampilan Anda sebagai pengurus tidak ikut dihitung, dan ada batas per jam agar angka tidak bisa digelembungkan.</p>
+    </details>
   </section>
 
   <!-- ===== PENGURUS (Ketua dan Wakil) ===== -->

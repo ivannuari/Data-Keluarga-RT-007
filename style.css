@@ -692,3 +692,52 @@ a.iconbtn { color: #fff; }
 }
 
 #k-list .kgroup { margin-bottom: 24px; }
+
+/* ==========================================================
+   Iklan warga (tahap 7)
+   ========================================================== */
+.adslot { list-style: none; position: relative; min-width: 0; }
+.adcard {
+  display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 16px; align-items: stretch;
+  background: linear-gradient(115deg, #fffaf4, #ffffff); border: 1px dashed #f0c9a3; border-radius: 16px;
+  padding: 12px; min-width: 0;
+}
+.adlabel { align-self: flex-start; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #b8691f; background: #fff1e3; padding: 2px 9px; border-radius: 999px; }
+.admedia, .adthumb {
+  position: relative; overflow: hidden; border-radius: 12px; display: grid; place-items: center;
+  background: var(--blue-100); color: var(--blue-800); min-height: 112px;
+}
+.admedia { cursor: zoom-in; align-self: stretch; }
+.admedia.zoom { grid-column: 1 / -1; min-height: 0; aspect-ratio: 4 / 3; cursor: zoom-out; }
+.adcard:has(.admedia.zoom) { grid-template-columns: minmax(0, 1fr); }
+.adthumb { width: 84px; height: 84px; min-height: 0; flex: none; border-radius: 14px; }
+.admedia.tone1, .adthumb.tone1 { background: #fff1e3; color: #b9611c; }
+.admedia.tone2, .adthumb.tone2 { background: #e5f6ee; color: #15774f; }
+.admedia.tone3, .adthumb.tone3 { background: #ebe9fb; color: #4a43a8; }
+.adini { font-family: var(--font-head); font-weight: 700; font-size: 1.8rem; }
+.admedia img, .adthumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.adbody { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 0; }
+.adbody h3 { font-size: 1.08rem; color: var(--blue-950); overflow-wrap: anywhere; }
+.addesc { margin: 0; color: #4a5d78; white-space: pre-line; overflow-wrap: anywhere; max-width: 62ch; }
+.addesc.clamp { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.adwa { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: #1fa855; border-color: #1fa855; box-shadow: 0 4px 10px rgba(31,168,85,.22); margin-top: 2px; }
+.adwa:hover { background: #198f48; border-color: #198f48; }
+.adwa .ico { display: grid; place-items: center; }
+.adwa .ico svg { width: 18px; height: 18px; }
+a.btn.adwa { color: #fff; }
+.adgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; }
+.adrow { gap: 14px; }
+.adrow .kbody { gap: 10px; }
+.istats { display: flex; flex-wrap: wrap; gap: 8px; }
+.istat { display: flex; flex-direction: column; background: var(--blue-50); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; min-width: 88px; }
+.istat strong { font-size: 1.1rem; color: var(--blue-900); line-height: 1.2; }
+.istat span { font-size: .72rem; color: var(--muted); }
+.adlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 14px; margin: 0; padding: 0; }
+.adrow .chip { background: #eef1f5; }
+@media (max-width: 520px) {
+  .adcard { grid-template-columns: minmax(0, 1fr); }
+  .admedia { min-height: 0; aspect-ratio: 16 / 10; }
+  .adrow .adthumb { width: 64px; height: 64px; }
+}
+
+.kcard.adrow { flex-direction: row; align-items: flex-start; justify-content: flex-start; padding: 16px; }
