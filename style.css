@@ -741,3 +741,28 @@ a.btn.adwa { color: #fff; }
 }
 
 .kcard.adrow { flex-direction: row; align-items: flex-start; justify-content: flex-start; padding: 16px; }
+
+/* ==========================================================
+   Header dengan gambar latar (ilustrasi lingkungan RT)
+   Ganti gambarnya: ubah "header-bg.svg" di bawah menjadi nama
+   file foto Anda (misal header-bg.jpg) yang diunggah ke GitHub.
+   Lapisan putih di kiri menjaga judul tetap terbaca.
+   ========================================================== */
+.top {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.97) 0%, rgba(255,255,255,.9) 38%, rgba(255,255,255,.35) 72%, rgba(255,255,255,.12) 100%),
+    url("header-bg.jpg") right bottom / cover no-repeat,
+    #ffffff;
+  overflow: hidden;
+  min-height: 132px;
+}
+.top .badge { background: rgba(255,255,255,.92); }
+.top .btn.ghost { background: rgba(255,255,255,.94); }
+@media (max-width: 760px) {
+  .top {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.88) 55%, rgba(255,255,255,.55) 100%),
+      url("header-bg.svg") right bottom / cover no-repeat,
+      #ffffff;
+  }
+}
