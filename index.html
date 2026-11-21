@@ -291,6 +291,18 @@
             <label for="k-telp">Nomor telepon</label>
             <input type="text" id="k-telp" maxlength="30" inputmode="tel" placeholder="Contoh: 081234567890">
           </div>
+          <div class="field">
+            <label for="k-foto">Foto (JPG, PNG, atau WebP, boleh dikosongkan)</label>
+            <input type="file" id="k-foto" accept="image/jpeg,image/png,image/webp">
+            <span class="hint">Tanpa foto, kartu menampilkan inisial nama.</span>
+          </div>
+          <div class="field" id="k-preview-wrap" hidden>
+            <img id="k-preview" class="preview kpreview" alt="Pratinjau foto kontak">
+            <label class="check" id="k-hapusfoto-wrap" for="k-hapusfoto" hidden>
+              <input type="checkbox" id="k-hapusfoto">
+              <span>Hapus foto yang sekarang</span>
+            </label>
+          </div>
           <div class="field wide">
             <label for="k-catatan">Catatan (boleh dikosongkan)</label>
             <input type="text" id="k-catatan" maxlength="300" placeholder="Contoh: Aktif 24 jam">

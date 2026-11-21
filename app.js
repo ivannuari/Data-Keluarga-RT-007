@@ -1536,12 +1536,49 @@
     state.kLoaded = true;
     renderAll();
   }
+  var KFOTO_DIR = "kontak/";
+  var ICON_TEL = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
+  var ICON_WA = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" focusable="false"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.38A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 1 1-4.3 15l-.3-.18-3.1.82.83-3.03-.2-.31A8.1 8.1 0 0 1 12.04 3.8zM8.6 7.4c-.2 0-.5.07-.75.35-.25.27-.97.95-.97 2.3s1 2.7 1.13 2.88c.14.18 1.93 3.07 4.77 4.18 2.36.93 2.84.75 3.35.7.52-.04 1.66-.68 1.9-1.33.23-.66.23-1.22.16-1.34-.07-.12-.25-.2-.52-.33-.27-.14-1.6-.79-1.85-.88-.25-.09-.43-.14-.6.14-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.14-1.15-.42-2.2-1.35-.81-.72-1.36-1.62-1.52-1.89-.16-.27-.02-.42.12-.55.12-.12.27-.32.4-.48.14-.16.18-.27.27-.45.09-.18.05-.34-.02-.48-.07-.14-.6-1.5-.84-2.05-.22-.52-.45-.45-.6-.46h-.5z"/></svg>';
+  function icoBtn(cls, href, svg, label, ext) {
+    var a = h("a", { class: "iconbtn " + cls, href: href, "aria-label": label, title: label });
+    if (ext) { a.target = "_blank"; a.rel = "noopener"; }
+    var s = h("span", { class: "ico", "aria-hidden": "true" });
+    s.innerHTML = svg;
+    a.append(s);
+    return a;
+  }
+  var HONOR = /^(bapak|bpk|pak|ibu|bu|haji|hj|h|dr|drs|ir|ustaz|ustadz|ustadzah|kh|kak|mas|mbak|om|tante)\.?$/i;
+  function inisial(nama) {
+    var w = String(nama || "").replace(/[^\p{L}\p{N}\s.'-]/gu, " ").split(/\s+/).filter(Boolean);
+    var core = w.filter(function (x) { return !HONOR.test(x); });
+    if (!core.length) core = w;
+    var out = core.slice(0, 2).map(function (x) { return Array.from(x.replace(/^[.'-]+/, ""))[0] || ""; }).join("");
+    return (out || "?").toLocaleUpperCase("id-ID");
+  }
+  function avatarTone(nama) {
+    var n = 0, t = String(nama || "");
+    for (var i = 0; i < t.length; i++) n = (n * 31 + t.charCodeAt(i)) >>> 0;
+    return n % 4;
+  }
+  function kAvatar(k) {
+    var box = h("div", { class: "kavatar tone" + avatarTone(k.nama) });
+    var ini = h("span", { class: "kini", "aria-hidden": "true" }, inisial(k.nama));
+    box.append(ini);
+    if (k.foto_path) {
+      var img = h("img", { src: proofUrl(k.foto_path), alt: "Foto " + k.nama, loading: "lazy", decoding: "async", width: "96", height: "96" });
+      img.addEventListener("error", function () { img.remove(); box.classList.add("noimg"); });
+      box.append(img);
+    }
+    return box;
+  }
   function kRow(k) {
     var tel = phoneTel(k.telepon), wa = waLink(k.telepon);
-    var links = h("div", { class: "rowact left" },
-      h("a", { class: "btn small", href: "tel:" + tel }, "Telepon"),
-      wa ? h("a", { class: "btn ghost small", href: wa, target: "_blank", rel: "noopener" }, "WhatsApp") : null);
+    var calls = h("div", { class: "kcall" },
+      icoBtn("tel", "tel:" + tel, ICON_TEL, "Telepon " + k.nama),
+      wa ? icoBtn("wa", wa, ICON_WA, "WhatsApp " + k.nama, true) : null);
+    var links = null;
     if (state.admin) {
+      links = h("div", { class: "rowact left" });
       if (state.kConfirmDel === k.id) {
         links.append(
           h("button", { type: "button", class: "btn danger small", onclick: function () { deleteKontak(k); } }, "Ya, hapus"),
@@ -1552,13 +1589,37 @@
           h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.kConfirmDel = k.id; renderInfo(); } }, "Hapus"));
       }
     }
-    return h("li", { class: "kcard" + (state.kEdit && state.kEdit.id === k.id ? " editing" : "") },
-      h("div", { class: "kmain" },
-        h("strong", { class: "kname" }, k.nama),
-        k.peran ? h("span", { class: "kperan" }, k.peran) : null,
-        h("span", { class: "kphone num" }, k.telepon),
-        k.catatan ? h("span", { class: "hint" }, k.catatan) : null),
-      links);
+    return h("li", { class: "kcard kc" + (state.kEdit && state.kEdit.id === k.id ? " editing" : "") },
+      kAvatar(k),
+      h("div", { class: "kbody" },
+        h("div", { class: "kmain" },
+          h("strong", { class: "kname" }, k.nama),
+          k.peran ? h("span", { class: "kperan" }, k.peran) : null,
+          h("span", { class: "kphone num" }, k.telepon),
+          k.catatan ? h("span", { class: "hint" }, k.catatan) : null),
+        calls, links));
+  }
+  var kPreviewUrl = null;
+  function setKPreview(src) {
+    if (kPreviewUrl) { URL.revokeObjectURL(kPreviewUrl); kPreviewUrl = null; }
+    var img = $("#k-preview"), wrapEl = $("#k-preview-wrap");
+    if (!src) { img.removeAttribute("src"); wrapEl.hidden = true; return; }
+    img.src = src; wrapEl.hidden = false;
+  }
+  // Foto kontak dipotong persegi di bagian tengah dan dikecilkan supaya ringan.
+  async function prepareAvatar(file, type) {
+    try {
+      var bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      var side = Math.min(bmp.width, bmp.height), size = Math.min(480, side);
+      var cv = document.createElement("canvas");
+      cv.width = size; cv.height = size;
+      var ctx = cv.getContext("2d");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+      var blob = await new Promise(function (res) { cv.toBlob(res, "image/jpeg", 0.85); });
+      if (blob) return { blob: blob, type: "image/jpeg" };
+    } catch (e) { /* pakai file asli */ }
+    return { blob: file, type: type };
   }
   function renderInfo() {
     $("#btn-kadd").hidden = !state.admin;
@@ -1588,6 +1649,8 @@
     $("#kform-title").textContent = "Tambah kontak";
     $("#k-submit").textContent = "Simpan";
     $("#k-urutan").value = "0";
+    $("#k-hapusfoto-wrap").hidden = true;
+    setKPreview(null);
   }
   function openKForm(k) {
     resetKForm();
@@ -1603,6 +1666,7 @@
       $("#k-telp").value = k.telepon || "";
       $("#k-catatan").value = k.catatan || "";
       $("#k-urutan").value = String(k.urutan || 0);
+      if (k.foto_path) { setKPreview(proofUrl(k.foto_path)); $("#k-hapusfoto-wrap").hidden = false; }
     }
     $("#kPanel").hidden = false;
     renderInfo();
@@ -1619,6 +1683,11 @@
     if (!telp) { msg.textContent = "Isi nomor telepon."; return; }
     if (!validPhone(telp)) { msg.textContent = "Nomor telepon hanya boleh berisi angka, spasi, tanda + dan -, sepanjang 3 sampai 16 angka."; return; }
     var urutan = parseInt($("#k-urutan").value, 10);
+    var kfile = $("#k-foto").files[0], ktype = null;
+    if (kfile) {
+      ktype = fileType(kfile);
+      if (!ktype || ktype === "application/pdf") { msg.textContent = "Foto harus berformat JPG, PNG, atau WebP. Foto HEIC dari iPhone perlu diubah ke JPG."; return; }
+    }
     var row = {
       kategori: $("#k-kategori").value, nama: nama, peran: $("#k-peran").value.trim() || null,
       telepon: telp, catatan: $("#k-catatan").value.trim() || null, urutan: isNaN(urutan) ? 0 : Math.max(0, Math.min(999, urutan))
@@ -1626,19 +1695,37 @@
     state.kSaving = true;
     var btn = $("#k-submit");
     btn.disabled = true; btn.textContent = "Menyimpan..."; msg.textContent = "";
+    var kUploaded = null, kOld = null;
     try {
       var ed = state.kEdit;
+      if (kfile) {
+        var prep = await prepareAvatar(kfile, ktype);
+        kUploaded = KFOTO_DIR + newId() + "." + TYPE_EXT[prep.type];
+        var up = await sb.storage.from(BUCKET).upload(kUploaded, prep.blob, { contentType: prep.type, upsert: false });
+        if (up.error) throw up.error;
+        row.foto_path = kUploaded;
+        kOld = ed && ed.foto_path ? ed.foto_path : null;
+      } else if (ed && ed.foto_path && $("#k-hapusfoto").checked) {
+        row.foto_path = null; kOld = ed.foto_path;
+      }
       var r = ed ? await sb.from("kontak").update(row).eq("id", ed.id).select()
                  : await sb.from("kontak").insert(row).select();
+      if (r.error && "foto_path" in row && /foto_path/.test(r.error.message || "")) {
+        if (kfile) throw { code: "KOLOM", message: "Kolom foto belum ada. Jalankan supabase-tahap6.sql di SQL Editor Supabase." };
+        delete row.foto_path; kOld = null;
+        r = ed ? await sb.from("kontak").update(row).eq("id", ed.id).select() : await sb.from("kontak").insert(row).select();
+      }
       if (r.error) throw r.error;
       if (!r.data || !r.data.length) throw { code: "42501" };
+      if (kOld) sb.storage.from(BUCKET).remove([kOld]);
       var wasEdit = !!ed;
       resetKForm();
       $("#kPanel").hidden = true;
       flashTemp(wasEdit ? "Perubahan tersimpan." : "Kontak ditambahkan.", "ok");
       await loadKontak();
     } catch (e) {
-      msg.textContent = errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+      if (kUploaded) sb.storage.from(BUCKET).remove([kUploaded]);
+      msg.textContent = e && e.code === "KOLOM" ? e.message : errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
     } finally {
       state.kSaving = false;
       btn.disabled = false;
@@ -1650,6 +1737,7 @@
       var r = await sb.from("kontak").delete().eq("id", k.id).select("id");
       if (r.error) throw r.error;
       if (!r.data || !r.data.length) throw { code: "42501" };
+      if (k.foto_path) sb.storage.from(BUCKET).remove([k.foto_path]);
       state.kConfirmDel = null;
       if (state.kEdit && state.kEdit.id === k.id) closeKForm();
       flashTemp("Kontak dihapus.", "ok");
@@ -2460,6 +2548,12 @@
     var f = e.target.files[0];
     if (f && /^image\//.test(f.type)) { var u = URL.createObjectURL(f); setPreview(null); previewUrl = u; $("#b-preview").src = u; $("#b-preview-wrap").hidden = false; }
     else setPreview(state.bEdit && state.bEdit.foto_path ? proofUrl(state.bEdit.foto_path) : null);
+  });
+
+  $("#k-foto").addEventListener("change", function (e) {
+    var f = e.target.files[0];
+    if (f && /^image\//.test(f.type)) { var u = URL.createObjectURL(f); setKPreview(null); kPreviewUrl = u; $("#k-preview").src = u; $("#k-preview-wrap").hidden = false; }
+    else setKPreview(state.kEdit && state.kEdit.foto_path ? proofUrl(state.kEdit.foto_path) : null);
   });
 
   // warga
