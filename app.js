@@ -2008,10 +2008,11 @@
   // TAHAP 4: DAFTAR PENGURUS DAN PERAN (hanya Ketua dan Wakil)
   // ======================================================================
   Object.assign(state, { pgs: [], gLoaded: false, gError: null, gEdit: null, gConfirmDel: null, gSaving: false });
-  var PERAN = [["ketua", "Ketua RT"], ["wakil", "Wakil Ketua RT"], ["pic", "PIC (penanggung jawab gang)"]];
+  var PERAN = [["ketua", "Ketua RT"], ["wakil", "Wakil Ketua RT"], ["pic", "PIC (penanggung jawab gang)"], ["ibu", "Ibu RT"]];
   function peranLabel(g) {
     if (g.peran === "ketua") return "Ketua RT";
     if (g.peran === "wakil") return "Wakil Ketua RT";
+    if (g.peran === "ibu") return "Ibu RT";
     return "PIC" + (g.gang && g.gang.trim() ? " " + g.gang.trim() : "");
   }
   function clearPengurus() {
