@@ -454,6 +454,21 @@
             <label for="w-rumah">Nomor rumah</label>
             <input type="text" id="w-rumah" maxlength="20" placeholder="Contoh: 12A">
           </div>
+          <fieldset class="field" id="w-jk-field">
+            <legend>Jenis kelamin</legend>
+            <div class="seg">
+              <input type="radio" name="w-jk" id="wj-l" value="L">
+              <label for="wj-l">Laki-laki</label>
+              <input type="radio" name="w-jk" id="wj-p" value="P">
+              <label for="wj-p">Perempuan</label>
+            </div>
+          </fieldset>
+          <div class="field" id="w-kk-field">
+            <label class="check" for="w-kepala">
+              <input type="checkbox" id="w-kepala">
+              <span>Kepala keluarga</span>
+            </label>
+          </div>
           <fieldset class="field">
             <legend>Tempat tinggal</legend>
             <div class="seg">
@@ -484,9 +499,9 @@
           <div class="field wide">
             <label class="check" for="w-ronda">
               <input type="checkbox" id="w-ronda">
-              <span>Wajib ronda</span>
+              <span>Ikut jadwal ronda</span>
             </label>
-            <span class="hint">Terisi otomatis untuk warga mukim berusia 18-59 tahun. Ubah bila perlu (misalnya warga yang sakit atau tidak mampu ronda). Hanya yang wajib ronda yang dibagi ke kelompok.</span>
+            <span class="hint" id="w-ronda-hint">Hanya warga mukim yang laki-laki dewasa (18 tahun ke atas) atau kepala keluarga yang bisa masuk jadwal ronda. Bila memenuhi syarat, kotak ini terisi otomatis; hilangkan centang untuk warga yang tidak ikut (misalnya sakit).</span>
           </div>
         </div>
         <div class="actions" style="margin-top: 16px;">
@@ -535,11 +550,11 @@
           </select>
         </div>
         <div class="field">
-          <label for="wf-ronda">Wajib ronda</label>
+          <label for="wf-ronda">Jadwal ronda</label>
           <select id="wf-ronda">
             <option value="">Semua</option>
-            <option value="ya">Wajib ronda</option>
-            <option value="tidak">Tidak wajib ronda</option>
+            <option value="ya">Ikut jadwal ronda</option>
+            <option value="tidak">Tidak ikut jadwal ronda</option>
           </select>
         </div>
         <div class="field">
@@ -603,7 +618,7 @@
     <div class="toolbar">
       <div>
         <h2>Atur jadwal ronda</h2>
-        <p class="hint">Warga yang wajib ronda dibagi ke 4 kelompok. Kelompok 1 sampai 4 ronda pada Sabtu ke-1 sampai ke-4 setiap bulan.</p>
+        <p class="hint">Warga mukim (laki-laki dewasa atau kepala keluarga) yang ikut ronda dibagi ke 4 kelompok. Kelompok 1 sampai 4 ronda pada Sabtu ke-1 sampai ke-4 setiap bulan.</p>
       </div>
       <div class="group monthnav">
         <button type="button" class="btn ghost small" id="p-prev" aria-label="Bulan sebelumnya">&lsaquo; Sebelumnya</button>
