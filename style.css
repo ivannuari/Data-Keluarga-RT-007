@@ -324,3 +324,9 @@ table.matrix { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-wi
 table.matrix th, table.matrix td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.matrix thead th { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 table.matrix tbody th { font-weight: 600; color: var(--fg); font-size: 0.9rem; text-transform: none; letter-spacing: 0; }
+
+/* ===== Bagikan ke WhatsApp ===== */
+a.btn.share { text-decoration: none; display: inline-flex; align-items: center; }
+.pinfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 2px; }
+.pin a.btn.share { background: transparent; color: var(--btn-fg); border-color: var(--btn-fg); }
+.pin a.btn.share:hover { background: var(--btn-fg); color: var(--y); }

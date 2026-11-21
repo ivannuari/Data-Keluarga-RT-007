@@ -662,6 +662,39 @@
     $("#proof-x").focus();
   }
 
+  // ---------- bagikan ke WhatsApp ----------
+  // Memakai tautan resmi wa.me: tidak butuh server, dan pengguna sendiri yang memilih
+  // grup atau kontak tujuan di WhatsApp. Tidak ada data yang dikirim ke pihak lain.
+  function portalUrl() { return window.location.origin + window.location.pathname + "#beranda"; }
+  function waClean(t) { return String(t || "").replace(/[*_~`]/g, "").replace(/\s+/g, " ").trim(); }
+  function waCut(t, max) {
+    t = String(t || "").replace(/\r\n/g, "\n").trim();
+    if (t.length <= max) return t;
+    var c = t.slice(0, max), i = c.lastIndexOf(" ");
+    return (i > max * 0.6 ? c.slice(0, i) : c).trim() + "...";
+  }
+  function waShareLink(text, label) {
+    return h("a", {
+      class: "btn ghost small share", href: "https://wa.me/?text=" + encodeURIComponent(text),
+      target: "_blank", rel: "noopener", "aria-label": label
+    }, "Bagikan ke WhatsApp");
+  }
+  function beritaShareText(b) {
+    var parts = ["*" + waClean(b.judul) + "*", longDate(b.tanggal)];
+    if (b.isi) parts.push("", waCut(b.isi, 400));
+    parts.push("", "Selengkapnya di Portal Data Warga 007/016:", portalUrl());
+    return parts.join("\n");
+  }
+  function pengShareText(p) {
+    var parts = ["*PENGUMUMAN: " + waClean(p.judul) + "*"];
+    if (p.acara_tanggal) parts.push("Tanggal: " + longDate(p.acara_tanggal));
+    if (p.acara_jam) parts.push("Jam: " + waClean(p.acara_jam));
+    if (p.tempat) parts.push("Tempat: " + waClean(p.tempat));
+    if (p.isi) parts.push("", waCut(p.isi, 400));
+    parts.push("", "Info lengkap di Portal Data Warga 007/016:", portalUrl());
+    return parts.join("\n");
+  }
+
   // Ketua dan Wakil boleh mengubah semua berita; PIC hanya berita miliknya sendiri.
   function canEditBerita(b) {
     return state.admin || (state.staff && !!b.oleh_email && b.oleh_email === String(state.email || "").toLowerCase());
@@ -681,8 +714,8 @@
         onclick: function () { state.bOpen[b.id] = !open; renderBerita(); }
       }, open ? "Tutup" : "Baca selengkapnya"));
     }
+    var act = h("div", { class: "rowact left" }, waShareLink(beritaShareText(b), "Bagikan berita ke WhatsApp: " + b.judul));
     if (canEditBerita(b)) {
-      var act = h("div", { class: "rowact left" });
       if (state.bConfirmDel === b.id) {
         act.append(
           h("button", { type: "button", class: "btn danger small", onclick: function () { deleteBerita(b); } }, "Ya, hapus berita"),
@@ -692,8 +725,8 @@
           h("button", { type: "button", class: "btn ghost small", onclick: function () { openBForm(b); } }, "Ubah"),
           h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.bConfirmDel = b.id; renderBerita(); } }, "Hapus"));
       }
-      body.append(act);
     }
+    body.append(act);
     var card = h("article", { class: "postcard" + (editing ? " editing" : "") });
     if (b.foto_path) {
       card.append(h("button", {
@@ -1313,7 +1346,9 @@
       h("h2", { class: "pintitle" }, p.judul),
       meta.children.length ? meta : null,
       p.isi ? h("p", { class: "pintext" }, p.isi) : null,
-      p.oleh_label ? h("p", { class: "pinby" }, "Diumumkan oleh " + p.oleh_label) : null);
+      h("div", { class: "pinfoot" },
+        waShareLink(pengShareText(p), "Bagikan pengumuman ke WhatsApp: " + p.judul),
+        p.oleh_label ? h("span", { class: "pinby" }, "Diumumkan oleh " + p.oleh_label) : null));
   }
   function renderPinned() {
     var box = $("#pinned");
