@@ -481,6 +481,13 @@
               <label for="wd-luar">Luar Sarimukti Cibitung</label>
             </div>
           </fieldset>
+          <div class="field wide">
+            <label class="check" for="w-ronda">
+              <input type="checkbox" id="w-ronda">
+              <span>Wajib ronda</span>
+            </label>
+            <span class="hint">Terisi otomatis untuk warga mukim berusia 18-59 tahun. Ubah bila perlu (misalnya warga yang sakit atau tidak mampu ronda). Hanya yang wajib ronda yang dibagi ke kelompok.</span>
+          </div>
         </div>
         <div class="actions" style="margin-top: 16px;">
           <button type="submit" class="btn" id="w-submit">Simpan warga</button>
@@ -528,6 +535,14 @@
           </select>
         </div>
         <div class="field">
+          <label for="wf-ronda">Wajib ronda</label>
+          <select id="wf-ronda">
+            <option value="">Semua</option>
+            <option value="ya">Wajib ronda</option>
+            <option value="tidak">Tidak wajib ronda</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="wf-ktp">Alamat di KTP</label>
           <select id="wf-ktp">
             <option value="">Semua</option>
@@ -568,6 +583,57 @@
       </div>
     </section>
   </section>
+  <!-- ===== RONDA (semua orang) ===== -->
+  <section class="tabpanel" id="tab-ronda" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2 id="r-title">Jadwal ronda</h2>
+        <p class="hint" id="r-sub">Ronda dilaksanakan setiap hari Sabtu malam, bergiliran empat kelompok.</p>
+      </div>
+    </div>
+    <div id="r-error" class="notice err" hidden></div>
+    <div class="legend" id="r-legend" aria-label="Arti status" hidden>
+      <span class="rstat st-hadir">Ronda</span><span class="rstat st-tukar">Tukar</span><span class="rstat st-izin">Izin</span><span class="rstat st-tidak">Tidak ronda</span>
+    </div>
+    <div id="r-grid" class="rgrid"></div>
+  </section>
+
+  <!-- ===== ATUR RONDA (Ketua dan Wakil) ===== -->
+  <section class="tabpanel" id="tab-atur" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Atur jadwal ronda</h2>
+        <p class="hint">Warga yang wajib ronda dibagi ke 4 kelompok. Kelompok 1 sampai 4 ronda pada Sabtu ke-1 sampai ke-4 setiap bulan.</p>
+      </div>
+      <div class="group monthnav">
+        <button type="button" class="btn ghost small" id="p-prev" aria-label="Bulan sebelumnya">&lsaquo; Sebelumnya</button>
+        <strong id="p-month" aria-live="polite"></strong>
+        <button type="button" class="btn ghost small" id="p-next" aria-label="Bulan berikutnya">Berikutnya &rsaquo;</button>
+      </div>
+    </div>
+    <div id="p-error" class="notice err" hidden></div>
+    <div id="p-notice" class="notice" hidden></div>
+
+    <section class="panel" aria-label="Alat penyusun jadwal">
+      <div class="ptools" id="p-tools">
+        <button type="button" class="btn ghost small" id="p-auto">Susun otomatis</button>
+        <button type="button" class="btn ghost small" id="p-fill">Masukkan yang belum dijadwalkan</button>
+        <button type="button" class="btn ghost small" id="p-copy">Salin dan putar dari bulan lalu</button>
+        <button type="button" class="btn ghost small" id="p-reset" hidden>Batalkan perubahan</button>
+        <button type="button" class="btn" id="p-save" disabled>Simpan jadwal</button>
+      </div>
+      <p class="hint" id="p-confirm" hidden></p>
+      <div class="field psearch">
+        <label for="p-q">Cari nama atau nomor rumah</label>
+        <input type="search" id="p-q" placeholder="Ketik untuk menyaring" autocomplete="off">
+      </div>
+      <p class="hint" id="p-status" role="status"></p>
+      <p class="hint">Cara memindah: <strong>seret</strong> nama ke kelompok lain, atau <strong>ketuk</strong> satu atau beberapa nama lalu tekan tombol "Pindahkan ke sini" di kelompok tujuan. Tanda oranye di kiri berarti sudah dipindah tetapi belum disimpan.</p>
+    </section>
+
+    <div id="p-board" class="board"></div>
+  </section>
+
   <!-- ===== PENGURUS (Ketua dan Wakil) ===== -->
   <section class="tabpanel" id="tab-pengurus" role="tabpanel" hidden>
     <div class="toolbar">

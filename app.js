@@ -17,7 +17,7 @@
     editing: null, confirmDel: null, saving: false, opener: null,
     berita: [], bLoaded: false, bError: null, bLimit: 8, bOpen: {}, bEdit: null, bConfirmDel: null, bSaving: false,
     warga: [], wLoaded: false, wError: null, wEdit: null, wConfirmDel: null, wSaving: false, wLimit: 100,
-    wf: { q: "", umur: "", min: "", max: "", gang: "", mukim: "", rumah: "", ktp: "", sort: "nama" }
+    wf: { q: "", umur: "", min: "", max: "", gang: "", mukim: "", rumah: "", ktp: "", ronda: "", sort: "nama" }
   };
 
   // ---------- helpers ----------
@@ -323,6 +323,8 @@
     // Data warga hanya dimuat untuk pengurus. Pengunjung biasa tidak pernah meminta tabel ini.
     if (state.staff) { if (!state.wLoaded) loadWarga(); } else { clearWarga(); }
     if (state.admin) { if (!state.gLoaded) loadPengurus(); } else { clearPengurus(); }
+    if (!state.admin) clearRondaAdmin();
+    loadRonda();
     // Pengurus membaca tabel laporan lengkap, warga membaca tampilan publik.
     if (state.lSrc && state.lSrc !== (state.admin ? "laporan" : "laporan_publik")) { state.lManage = null; state.lDraft = null; loadLaporan(); }
     applyAuthUi();
@@ -579,9 +581,11 @@
   var TABS = [
     { id: "beranda", label: "Beranda" },
     { id: "laporan", label: "Laporan" },
+    { id: "ronda", label: "Ronda" },
     { id: "info", label: "Info Penting" },
     { id: "keuangan", label: "Keuangan" },
     { id: "warga", label: "Data Warga", staff: true },
+    { id: "atur", label: "Atur Ronda", admin: true },
     { id: "pengurus", label: "Pengurus", admin: true }
   ];
   function tabsFor() { return TABS.filter(function (t) { return (!t.admin || state.admin) && (!t.staff || state.staff); }); }
@@ -608,6 +612,8 @@
     else if (cur === "warga") renderWarga();
     else if (cur === "pengurus") renderPengurus();
     else if (cur === "laporan") renderLaporan();
+    else if (cur === "ronda") renderRonda();
+    else if (cur === "atur") renderAtur();
     else if (cur === "info") renderInfo();
     else { renderBerita(); renderPengAdmin(); }
   }
@@ -976,6 +982,8 @@
       if (f.mukim && w.status_mukim !== f.mukim) return false;
       if (f.rumah && w.status_rumah !== f.rumah) return false;
       if (f.ktp && w.domisili_ktp !== f.ktp) return false;
+      if (f.ronda === "ya" && !w.wajib_ronda) return false;
+      if (f.ronda === "tidak" && w.wajib_ronda) return false;
       return true;
     });
     var s = f.sort;
@@ -1042,7 +1050,8 @@
       h("td", {}, h("div", { class: "chips" },
         h("span", { class: "chip" + (w.status_mukim === "mukim" ? "" : " alt") }, w.status_mukim === "mukim" ? "Mukim" : "Tidak mukim"),
         h("span", { class: "chip" + (w.status_rumah === "milik" ? "" : " alt") }, w.status_rumah === "milik" ? "Milik sendiri" : "Sewa"),
-        h("span", { class: "chip" + (w.domisili_ktp === "sarimukti" ? "" : " alt") }, w.domisili_ktp === "sarimukti" ? "KTP Sarimukti" : "KTP luar"))),
+        h("span", { class: "chip" + (w.domisili_ktp === "sarimukti" ? "" : " alt") }, w.domisili_ktp === "sarimukti" ? "KTP Sarimukti" : "KTP luar"),
+        w.wajib_ronda ? h("span", { class: "chip alt" }, "Wajib ronda") : null)),
       h("td", {}, w.no_telepon ? h("a", { class: "linkbtn", href: "tel:" + w.no_telepon }, w.no_telepon) : h("span", { class: "muted" }, "-"))
     );
     var act = h("div", { class: "rowact" });
@@ -1082,6 +1091,9 @@
     $("#w-more-wrap").hidden = list.length <= state.wLimit;
   }
   function renderWarga() {
+    state.wHasRonda = state.warga.length ? ("wajib_ronda" in state.warga[0]) : null;
+    $("#w-ronda").closest("label").hidden = state.wHasRonda === false;
+    $("#wf-ronda").closest(".field").hidden = state.wHasRonda === false;
     renderWargaFilters();
     renderWargaList();
   }
@@ -1101,8 +1113,17 @@
       setPick("w-mukim", keep.mukim); setPick("w-rumah-st", keep.rst); setPick("w-ktp-dom", keep.dom);
     }
     state.wEdit = null;
+    state.wRondaTouched = false;
+    syncWajibDefault();
     $("#wform-title").textContent = "Tambah warga";
     $("#w-submit").textContent = "Simpan warga";
+  }
+  // Nilai awal "Wajib ronda": warga mukim berusia 18-59 tahun. Pengurus bebas mengubahnya;
+  // setelah diubah manual, nilai tidak ditimpa lagi.
+  function syncWajibDefault() {
+    if (state.wRondaTouched) return;
+    var a = ageOf($("#w-lahir").value);
+    $("#w-ronda").checked = pick("w-mukim") === "mukim" && a != null && a >= 18 && a <= 59;
   }
   function openWForm(w) {
     resetWForm(false);
@@ -1120,6 +1141,8 @@
       $("#w-gang").value = w.gang || "";
       $("#w-rumah").value = w.no_rumah || "";
       setPick("w-mukim", w.status_mukim); setPick("w-rumah-st", w.status_rumah); setPick("w-ktp-dom", w.domisili_ktp);
+      state.wRondaTouched = true;
+      $("#w-ronda").checked = !!w.wajib_ronda;
     } else if (state.role === "pic" && state.profile && state.profile.gang) {
       // PIC biasanya menginput warga di gangnya sendiri.
       $("#w-gang").value = canonGang(state.profile.gang);
@@ -1158,13 +1181,21 @@
       status_mukim: pick("w-mukim"), status_rumah: pick("w-rumah-st"), domisili_ktp: pick("w-ktp-dom"),
       no_telepon: telp || null, gang: gang, no_rumah: rumah
     };
+    // Kolom baru dari supabase-tahap5.sql. Jika belum dijalankan, simpan tanpa kolom ini.
+    if (state.wHasRonda !== false) row.wajib_ronda = $("#w-ronda").checked;
     state.wSaving = true;
     var btn = $("#w-submit");
     btn.disabled = true; btn.textContent = "Menyimpan...";
     msg.textContent = "";
     try {
-      var r = ed ? await sb.from("warga").update(row).eq("id", ed.id).select()
-                 : await sb.from("warga").insert(row).select();
+      var save = function () {
+        return ed ? sb.from("warga").update(row).eq("id", ed.id).select() : sb.from("warga").insert(row).select();
+      };
+      var r = await save();
+      if (r.error && "wajib_ronda" in row && /wajib_ronda/.test(r.error.message || "")) {
+        delete row.wajib_ronda; state.wHasRonda = false;
+        r = await save();
+      }
       if (r.error) throw r.error;
       if (!r.data || !r.data.length) throw { code: "42501" };
       if (ed) {
@@ -1855,7 +1886,7 @@
     }
   }
 
-  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); }
+  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); loadRonda(); }
   function tahap3Idle() {
     return $("#aPanel").hidden && $("#kPanel").hidden && $("#lPanel").hidden && !state.lSending && !state.pSaving && !state.kSaving && !state.lManage;
   }
@@ -2031,6 +2062,354 @@
   }
 
   // ======================================================================
+  // TAHAP 5: JADWAL RONDA
+  // Warga: tab "Ronda" (jadwal bulan berjalan + status kehadiran).
+  // Ketua/Wakil: mencatat kehadiran di tab yang sama, dan menyusun jadwal
+  // bulan mana pun lewat tab "Atur Ronda" (seret dan lepas).
+  // ======================================================================
+  Object.assign(state, {
+    rdPub: [], rdJ: [], rdA: [], rdSrc: null, rdLoaded: false, rdError: null, rdSaveErr: "", rdSaving: {},
+    pKey: null, pLoadedKey: null, pLoading: false, pError: null, pSaved: {}, pDraft: {}, pSel: {}, pSaving: false,
+    pAsk: null, pMsg: "", pQ: ""
+  });
+  var rSeq = 0, pSeq = 0;
+  var RSTAT = [["hadir", "Ronda"], ["tukar", "Tukar"], ["izin", "Izin"], ["tidak", "Tidak ronda"]];
+
+  function jakartaToday() { return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }); }
+  function monthStart(iso) { return iso.slice(0, 7) + "-01"; }
+  function addMonths(key, n) {
+    var p = key.split("-").map(Number), d = new Date(p[0], p[1] - 1 + n, 1);
+    return isoDate(d);
+  }
+  function sabtuKe(key, ke) {
+    var p = key.split("-").map(Number), first = new Date(p[0], p[1] - 1, 1);
+    var off = (6 - first.getDay() + 7) % 7;
+    return isoDate(new Date(p[0], p[1] - 1, 1 + off + 7 * (ke - 1)));
+  }
+  function rondaErr(e) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "42P01" || c === "PGRST205" || c === "42501" || c === "PGRST200") {
+      return "Jadwal ronda belum siap. Jalankan supabase-tahap5.sql di SQL Editor Supabase.";
+    }
+    return "Jadwal ronda belum bisa dimuat. " + (e && e.message ? "[" + (c ? c + ": " : "") + e.message + "]" : "Periksa koneksi internet.");
+  }
+  function pName(w) { return w ? w.nama : "(warga dihapus)"; }
+
+  // ---------- tab Ronda ----------
+  async function loadRonda() {
+    if (!sb) return;
+    var my = ++rSeq, admin = state.admin, key = monthStart(jakartaToday());
+    try {
+      if (admin) {
+        var dates = [1, 2, 3, 4].map(function (k) { return sabtuKe(key, k); });
+        var a = await sb.from("ronda_jadwal").select("*").eq("bulan", key);
+        if (a.error) throw a.error;
+        var b = await sb.from("ronda_absen").select("*").gte("tanggal", dates[0]).lte("tanggal", dates[3]);
+        if (b.error) throw b.error;
+        if (my !== rSeq) return;
+        state.rdJ = a.data || []; state.rdA = b.data || []; state.rdPub = [];
+      } else {
+        var r = await sb.from("ronda_publik").select("*").order("tanggal", { ascending: true }).order("nama", { ascending: true });
+        if (r.error) throw r.error;
+        if (my !== rSeq) return;
+        state.rdPub = r.data || []; state.rdJ = []; state.rdA = [];
+      }
+      state.rdSrc = admin ? "admin" : "publik";
+      state.rdError = null;
+    } catch (e) {
+      if (my !== rSeq) return;
+      console.error("Gagal memuat jadwal ronda:", e);
+      state.rdError = e || {};
+    }
+    state.rdLoaded = true;
+    renderAll();
+  }
+  function clearRondaAdmin() {
+    state.pKey = null; state.pLoadedKey = null; state.pSaved = {}; state.pDraft = {}; state.pSel = {};
+    state.pAsk = null; state.pMsg = ""; state.pError = null;
+    if (state.rdSrc === "admin") { state.rdJ = []; state.rdA = []; state.rdSrc = null; state.rdLoaded = false; }
+  }
+  function rondaRows() {
+    var key = monthStart(jakartaToday());
+    if (state.admin && state.rdSrc === "admin") {
+      var byId = {}; state.warga.forEach(function (w) { byId[w.id] = w; });
+      var ab = {}; state.rdA.forEach(function (x) { ab[x.tanggal + "|" + x.warga_id] = x; });
+      return state.rdJ.map(function (j) {
+        var w = byId[j.warga_id], tgl = sabtuKe(key, j.kelompok), x = ab[tgl + "|" + j.warga_id];
+        return { id: j.warga_id, kelompok: j.kelompok, tanggal: tgl, nama: pName(w), no_rumah: w ? w.no_rumah : "",
+          status: x ? x.status : "", catatan: x ? (x.catatan || "") : "" };
+      });
+    }
+    return state.rdPub.map(function (p) {
+      return { id: null, kelompok: p.kelompok, tanggal: p.tanggal, nama: p.nama, no_rumah: p.no_rumah, status: p.status || "", catatan: p.catatan || "" };
+    });
+  }
+  async function saveAbsen(row, status, catatan, card) {
+    var k = row.tanggal + "|" + row.id;
+    if (state.rdSaving[k]) return;
+    state.rdSaving[k] = true;
+    try {
+      var res;
+      if (!status) {
+        res = await sb.from("ronda_absen").delete().eq("tanggal", row.tanggal).eq("warga_id", row.id);
+      } else {
+        res = await sb.from("ronda_absen").upsert({ tanggal: row.tanggal, warga_id: row.id, status: status, catatan: catatan ? catatan.slice(0, 120) : null, dicatat_pada: new Date().toISOString() }, { onConflict: "tanggal,warga_id" });
+      }
+      if (res.error) throw res.error;
+      state.rdA = state.rdA.filter(function (x) { return !(x.tanggal === row.tanggal && x.warga_id === row.id); });
+      if (status) state.rdA.push({ tanggal: row.tanggal, warga_id: row.id, status: status, catatan: catatan || null });
+      state.rdSaveErr = "";
+    } catch (e) {
+      console.error("Gagal menyimpan kehadiran:", e);
+      state.rdSaveErr = "Kehadiran belum tersimpan. " + errText(e, "Periksa koneksi lalu coba lagi.");
+    } finally {
+      delete state.rdSaving[k];
+      renderAll();
+    }
+  }
+  function renderRonda() {
+    var grid = $("#r-grid"), err = $("#r-error");
+    var key = monthStart(jakartaToday());
+    $("#r-title").textContent = "Jadwal ronda " + monthLabel(key);
+    grid.textContent = "";
+    $("#r-legend").hidden = true;
+    if (state.rdError) { err.textContent = rondaErr(state.rdError); err.hidden = false; return; }
+    err.textContent = state.rdSaveErr || ""; err.hidden = !state.rdSaveErr;
+    if (!state.rdLoaded) { grid.append(h("p", { class: "empty card" }, "Memuat jadwal ronda...")); return; }
+    var rows = rondaRows();
+    if (!rows.length) {
+      grid.append(h("p", { class: "empty card" }, state.admin
+        ? "Jadwal bulan ini belum disusun. Buka tab Atur Ronda untuk menyusunnya."
+        : "Jadwal ronda bulan ini belum disusun oleh pengurus."));
+      return;
+    }
+    $("#r-legend").hidden = false;
+    var today = jakartaToday(), nextDone = false;
+    [1, 2, 3, 4].forEach(function (k) {
+      var tgl = sabtuKe(key, k);
+      var list = rows.filter(function (r) { return r.kelompok === k; }).sort(function (a, b) { return ncmp(a.nama, b.nama); });
+      var past = tgl < today, isNext = !past && !nextDone;
+      if (isNext) nextDone = true;
+      var cnt = {}; list.forEach(function (r) { if (r.status) cnt[r.status] = (cnt[r.status] || 0) + 1; });
+      var sum = RSTAT.filter(function (s) { return cnt[s[0]]; }).map(function (s) { return s[1] + " " + cnt[s[0]]; }).join(" · ");
+      var card = h("section", { class: "rcard" + (isNext ? " next" : "") + (past ? " past" : ""), "data-k": String(k) },
+        h("header", { class: "rhead" },
+          h("div", {}, h("h3", {}, "Kelompok " + k), h("p", { class: "hint" }, longDate(tgl))),
+          isNext ? h("span", { class: "chip" }, "Berikutnya") : (past ? h("span", { class: "chip alt" }, "Sudah lewat") : null)),
+        sum ? h("p", { class: "rsum" }, sum) : null);
+      if (!list.length) card.append(h("p", { class: "empty" }, "Belum ada anggota."));
+      var ul = h("ul", { class: "plain rlist" });
+      list.forEach(function (r) {
+        var li = h("li", { class: "rrow" },
+          h("div", { class: "rwho" }, h("strong", {}, r.nama), h("span", { class: "sub2" }, r.no_rumah ? "No. " + r.no_rumah : "")));
+        if (state.admin && r.id) {
+          var sel = h("select", { "aria-label": "Status " + r.nama, class: "rsel st-" + (r.status || "none") },
+            h("option", { value: "" }, "Belum dicatat"),
+            RSTAT.map(function (s) { return h("option", { value: s[0] }, s[1]); }));
+          sel.value = r.status || "";
+          var note = h("input", { type: "text", maxlength: "120", class: "rnote", "aria-label": "Catatan untuk " + r.nama, placeholder: "Catatan (misal: tukar dengan Pak Budi)" });
+          note.value = r.catatan || "";
+          if (state.rdSaving[r.tanggal + "|" + r.id]) { sel.disabled = true; note.disabled = true; }
+          sel.addEventListener("change", function () { saveAbsen(r, sel.value, note.value.trim()); });
+          note.addEventListener("change", function () { if (sel.value) saveAbsen(r, sel.value, note.value.trim()); });
+          li.append(h("div", { class: "rctl" }, sel, note));
+        } else {
+          li.append(h("div", { class: "rctl" },
+            r.status ? h("span", { class: "rstat st-" + r.status }, (RSTAT.filter(function (s) { return s[0] === r.status; })[0] || ["", r.status])[1]) : null,
+            r.catatan ? h("span", { class: "sub2" }, r.catatan) : null));
+        }
+        ul.append(li);
+      });
+      card.append(ul);
+      grid.append(card);
+    });
+  }
+
+  // ---------- tab Atur Ronda ----------
+  function pEligible() { return state.warga.filter(function (w) { return w.wajib_ronda; }); }
+  function pCopy(o) { var c = {}; Object.keys(o).forEach(function (k) { c[k] = o[k]; }); return c; }
+  function pDirty() {
+    var a = state.pSaved, b = state.pDraft, k;
+    for (k in a) if (b[k] !== a[k]) return true;
+    for (k in b) if (a[k] !== b[k]) return true;
+    return false;
+  }
+  function pSelIds() { return Object.keys(state.pSel).filter(function (k) { return state.pSel[k]; }); }
+  async function loadAtur() {
+    if (!sb || !state.admin || state.pLoading) return;
+    var my = ++pSeq, key = state.pKey;
+    state.pLoading = true;
+    try {
+      var r = await sb.from("ronda_jadwal").select("*").eq("bulan", key);
+      if (r.error) throw r.error;
+      if (my !== pSeq) return;
+      var m = {}; (r.data || []).forEach(function (j) { m[j.warga_id] = j.kelompok; });
+      state.pSaved = m; state.pDraft = pCopy(m); state.pSel = {}; state.pError = null; state.pAsk = null;
+    } catch (e) {
+      if (my !== pSeq) return;
+      console.error("Gagal memuat jadwal ronda:", e);
+      state.pError = e || {};
+    }
+    state.pLoading = false;
+    state.pLoadedKey = key;
+    renderAll();
+  }
+  function pMove(ids, k) {
+    ids.forEach(function (id) { if (k) state.pDraft[id] = k; else delete state.pDraft[id]; });
+    state.pSel = {}; state.pAsk = null; state.pMsg = "";
+    renderAtur();
+  }
+  function pSizes() { var s = [0, 0, 0, 0, 0]; pEligible().forEach(function (w) { var k = state.pDraft[w.id]; if (k) s[k]++; }); return s; }
+  function pFill() {
+    var s = pSizes(), n = 0;
+    pEligible().filter(function (w) { return !state.pDraft[w.id]; })
+      .sort(function (a, b) { return ncmp(a.gang, b.gang) || ncmp(a.no_rumah, b.no_rumah) || ncmp(a.nama, b.nama); })
+      .forEach(function (w) {
+        var best = 1; for (var k = 2; k <= 4; k++) if (s[k] < s[best]) best = k;
+        state.pDraft[w.id] = best; s[best]++; n++;
+      });
+    return n;
+  }
+  function pAuto() {
+    state.pDraft = {};
+    pEligible().sort(function (a, b) { return ncmp(a.gang, b.gang) || ncmp(a.no_rumah, b.no_rumah) || ncmp(a.nama, b.nama); })
+      .forEach(function (w, i) { state.pDraft[w.id] = (i % 4) + 1; });
+  }
+  async function pCopyPrev() {
+    var r = await sb.from("ronda_jadwal").select("*").eq("bulan", addMonths(state.pKey, -1));
+    if (r.error) throw r.error;
+    var elig = {}; pEligible().forEach(function (w) { elig[w.id] = true; });
+    var d = {}, n = 0;
+    (r.data || []).forEach(function (j) { if (elig[j.warga_id]) { d[j.warga_id] = (j.kelompok % 4) + 1; n++; } });
+    state.pDraft = d;
+    return n;
+  }
+  async function pSave() {
+    if (state.pSaving || !pDirty()) return;
+    state.pSaving = true; state.pMsg = ""; renderAtur();
+    var key = state.pKey, up = [], del = [];
+    Object.keys(state.pDraft).forEach(function (id) { if (state.pSaved[id] !== state.pDraft[id]) up.push({ bulan: key, warga_id: id, kelompok: state.pDraft[id] }); });
+    Object.keys(state.pSaved).forEach(function (id) { if (!state.pDraft[id]) del.push(id); });
+    try {
+      if (up.length) { var a = await sb.from("ronda_jadwal").upsert(up, { onConflict: "bulan,warga_id" }); if (a.error) throw a.error; }
+      if (del.length) { var b = await sb.from("ronda_jadwal").delete().eq("bulan", key).in("warga_id", del); if (b.error) throw b.error; }
+      state.pSaved = pCopy(state.pDraft);
+      state.pMsg = "Jadwal " + monthLabel(key) + " tersimpan.";
+      state.pError = null;
+      loadRonda();
+    } catch (e) {
+      console.error("Gagal menyimpan jadwal ronda:", e);
+      state.pMsg = "Jadwal belum tersimpan. " + errText(e, "Periksa koneksi lalu coba lagi.");
+    }
+    state.pSaving = false;
+    renderAtur();
+  }
+  function pChip(w) {
+    var id = w.id, k = state.pDraft[id] || 0, moved = (state.pSaved[id] || 0) !== k, on = !!state.pSel[id];
+    var c = h("div", {
+      class: "pchip" + (on ? " sel" : "") + (moved ? " moved" : ""), role: "button", tabindex: "0", draggable: "true",
+      "aria-pressed": String(on), "data-id": id,
+      "aria-label": w.nama + ", rumah " + (w.no_rumah || "-") + ", " + (k ? "kelompok " + k : "belum dijadwalkan")
+    },
+      h("strong", {}, w.nama),
+      h("span", { class: "sub2" }, (w.gang ? w.gang + " · " : "") + "No. " + (w.no_rumah || "-")));
+    function toggle() { state.pSel[id] = !state.pSel[id]; renderAtur(); }
+    c.addEventListener("click", toggle);
+    c.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(); } });
+    c.addEventListener("dragstart", function (ev) {
+      var ids = state.pSel[id] ? pSelIds() : [id];
+      ev.dataTransfer.setData("text/plain", JSON.stringify(ids));
+      ev.dataTransfer.effectAllowed = "move";
+      c.classList.add("drag");
+    });
+    c.addEventListener("dragend", function () { c.classList.remove("drag"); Array.prototype.forEach.call(document.querySelectorAll(".bcol.over"), function (x) { x.classList.remove("over"); }); });
+    return c;
+  }
+  function renderAtur() {
+    if (!state.admin) return;
+    if (!state.pKey) state.pKey = addMonths(monthStart(jakartaToday()), 1);
+    var err = $("#p-error"), board = $("#p-board"), note = $("#p-notice");
+    $("#p-month").textContent = monthLabel(state.pKey);
+    var cur = monthStart(jakartaToday());
+    var busy = state.pSaving || state.pLoading;
+    board.textContent = "";
+    if (state.pLoadedKey !== state.pKey && !state.pLoading && !state.pError) { loadAtur(); }
+    var bad = state.pError ? rondaErr(state.pError)
+      : (state.wLoaded && state.warga.length && !("wajib_ronda" in state.warga[0]) ? "Penanda wajib ronda belum ada. Jalankan supabase-tahap5.sql di SQL Editor Supabase." : "");
+    err.textContent = bad; err.hidden = !bad;
+    var msg = state.pMsg || (state.pKey === cur ? "Ini bulan yang sedang berjalan: perubahan langsung terlihat oleh warga." : (state.pKey < cur ? "Ini bulan yang sudah lewat." : ""));
+    note.textContent = msg; note.hidden = !msg;
+    var dirty = pDirty(), n = pSelIds().length;
+    $("#p-save").disabled = !dirty || busy || !!bad;
+    $("#p-save").textContent = state.pSaving ? "Menyimpan..." : "Simpan jadwal";
+    $("#p-reset").hidden = !dirty;
+    ["#p-auto", "#p-fill", "#p-copy"].forEach(function (s) { $(s).disabled = busy || !!bad; });
+    $("#p-auto").textContent = state.pAsk === "auto" ? "Yakin? Klik lagi untuk menimpa" : "Susun otomatis";
+    $("#p-copy").textContent = state.pAsk === "copy" ? "Yakin? Klik lagi untuk menimpa" : "Salin dan putar dari bulan lalu";
+    var cf = $("#p-confirm"); cf.hidden = !state.pAsk;
+    cf.textContent = state.pAsk ? "Susunan yang sekarang di layar akan diganti (belum disimpan sampai Anda menekan Simpan jadwal)." : "";
+    if (bad) { $("#p-status").textContent = ""; return; }
+    if (!state.wLoaded || state.pLoadedKey !== state.pKey) { $("#p-status").textContent = "Memuat..."; return; }
+    var elig = pEligible(), q = (state.pQ || "").toLowerCase();
+    var sizes = pSizes(), un = elig.length - sizes[1] - sizes[2] - sizes[3] - sizes[4];
+    $("#p-status").textContent = elig.length + " warga wajib ronda · " + un + " belum dijadwalkan" + (n ? " · " + n + " dipilih" : "") +
+      (dirty ? " · ada perubahan yang belum disimpan" : "");
+    // jadwal lama untuk warga yang tidak lagi wajib ronda tetap ditampilkan agar bisa dirapikan
+    var byId = {}; state.warga.forEach(function (w) { byId[w.id] = w; });
+    var people = elig.slice();
+    Object.keys(state.pDraft).forEach(function (id) { if (byId[id] && !byId[id].wajib_ronda) people.push(byId[id]); });
+    var cols = [[0, "Belum dijadwalkan", ""], [1, "Kelompok 1", sabtuKe(state.pKey, 1)], [2, "Kelompok 2", sabtuKe(state.pKey, 2)],
+      [3, "Kelompok 3", sabtuKe(state.pKey, 3)], [4, "Kelompok 4", sabtuKe(state.pKey, 4)]];
+    cols.forEach(function (c) {
+      var k = c[0];
+      var mem = people.filter(function (w) { return (state.pDraft[w.id] || 0) === k; })
+        .sort(function (a, b) { return ncmp(a.gang, b.gang) || ncmp(a.no_rumah, b.no_rumah) || ncmp(a.nama, b.nama); });
+      var col = h("section", { class: "bcol" + (k ? "" : " unassigned"), "data-k": String(k), "aria-label": c[1] },
+        h("header", {}, h("h3", {}, c[1]), h("span", { class: "chip" }, String(mem.length))),
+        c[2] ? h("p", { class: "hint" }, "Sabtu ke-" + k + ": " + longDate(c[2])) : h("p", { class: "hint" }, "Tidak ikut ronda bulan ini"));
+      if (n) col.append(h("button", { type: "button", class: "btn small ghost", onclick: function () { pMove(pSelIds(), k); } },
+        k ? "Pindahkan " + n + " ke sini" : "Keluarkan " + n + " dari jadwal"));
+      var body = h("div", { class: "bbody" });
+      mem.forEach(function (w) {
+        var chip = pChip(w);
+        if (q && (w.nama + " " + (w.no_rumah || "") + " " + (w.gang || "")).toLowerCase().indexOf(q) < 0) chip.hidden = true;
+        body.append(chip);
+      });
+      if (!mem.length) body.append(h("p", { class: "empty" }, k ? "Seret nama ke sini" : "Semua sudah dijadwalkan"));
+      col.append(body);
+      col.addEventListener("dragover", function (ev) { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; col.classList.add("over"); });
+      col.addEventListener("dragleave", function (ev) { if (!col.contains(ev.relatedTarget)) col.classList.remove("over"); });
+      col.addEventListener("drop", function (ev) {
+        ev.preventDefault(); col.classList.remove("over");
+        var ids = [];
+        try { ids = JSON.parse(ev.dataTransfer.getData("text/plain") || "[]"); } catch (e) { ids = []; }
+        if (Array.isArray(ids) && ids.length) pMove(ids.filter(function (x) { return typeof x === "string"; }), k);
+      });
+      board.append(col);
+    });
+  }
+  function pShift(n) {
+    if (pDirty()) { state.pMsg = "Simpan atau batalkan perubahan dulu sebelum pindah bulan."; renderAtur(); return; }
+    state.pKey = addMonths(state.pKey, n); state.pMsg = ""; state.pSel = {}; state.pAsk = null; state.pError = null;
+    renderAtur();
+  }
+  async function pAction(kind) {
+    var has = Object.keys(state.pDraft).length > 0;
+    if (has && state.pAsk !== kind) { state.pAsk = kind; renderAtur(); return; }
+    state.pAsk = null; state.pSel = {};
+    try {
+      if (kind === "auto") { pAuto(); state.pMsg = "Disusun otomatis: warga dibagi rata, anggota satu rumah diusahakan beda kelompok."; }
+      else if (kind === "fill") { var n = pFill(); state.pMsg = n ? n + " warga dimasukkan ke kelompok yang paling sedikit." : "Semua warga wajib ronda sudah dijadwalkan."; }
+      else if (kind === "copy") {
+        var c = await pCopyPrev();
+        if (!c) { state.pMsg = "Bulan lalu belum ada jadwal untuk disalin."; }
+        else { var f = pFill(); state.pMsg = c + " warga disalin dari bulan lalu dengan kelompok digeser satu" + (f ? ", " + f + " warga baru ditambahkan." : "."); }
+      }
+    } catch (e) { state.pMsg = "Gagal menyalin jadwal bulan lalu. " + errText(e, "Coba lagi."); }
+    renderAtur();
+  }
+
+  // ======================================================================
   // PEMASANGAN EVENT
   // ======================================================================
   $("#period").addEventListener("change", function (e) { state.period = e.target.value; state.periodChosen = true; state.confirmDel = null; renderAll(); });
@@ -2067,7 +2446,10 @@
   $("#wform").addEventListener("submit", onWargaSubmit);
   $("#w-cancel").addEventListener("click", closeWForm);
   ["#w-kk", "#w-ktp"].forEach(function (s) { $(s).addEventListener("input", function (e) { e.target.value = digits(e.target.value).slice(0, 16); }); });
-  var FILTER_IDS = { q: "#wf-q", min: "#wf-min", max: "#wf-max", gang: "#wf-gang", mukim: "#wf-mukim", rumah: "#wf-rumah", ktp: "#wf-ktp", sort: "#wf-sort" };
+  var FILTER_IDS = { q: "#wf-q", min: "#wf-min", max: "#wf-max", gang: "#wf-gang", mukim: "#wf-mukim", rumah: "#wf-rumah", ktp: "#wf-ktp", ronda: "#wf-ronda", sort: "#wf-sort" };
+  $("#w-lahir").addEventListener("input", syncWajibDefault);
+  [].forEach.call(document.querySelectorAll('input[name="w-mukim"]'), function (r) { r.addEventListener("change", syncWajibDefault); });
+  $("#w-ronda").addEventListener("change", function () { state.wRondaTouched = true; });
   Object.keys(FILTER_IDS).forEach(function (k) {
     $(FILTER_IDS[k]).addEventListener("input", function (e) {
       state.wf[k] = e.target.value;
@@ -2110,6 +2492,16 @@
   $("#gform").addEventListener("submit", onPengurusSubmit);
   $("#g-cancel").addEventListener("click", closeGForm);
   $("#g-peran").addEventListener("change", syncGangField);
+
+  // ronda
+  $("#p-prev").addEventListener("click", function () { pShift(-1); });
+  $("#p-next").addEventListener("click", function () { pShift(1); });
+  $("#p-auto").addEventListener("click", function () { pAction("auto"); });
+  $("#p-fill").addEventListener("click", function () { pAction("fill"); });
+  $("#p-copy").addEventListener("click", function () { pAction("copy"); });
+  $("#p-reset").addEventListener("click", function () { state.pDraft = pCopy(state.pSaved); state.pSel = {}; state.pAsk = null; state.pMsg = ""; renderAtur(); });
+  $("#p-save").addEventListener("click", pSave);
+  $("#p-q").addEventListener("input", function () { state.pQ = $("#p-q").value; renderAtur(); });
 
   // ---------- mulai ----------
   resetForm(false);
