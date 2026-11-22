@@ -820,3 +820,15 @@ a.btn.adwa { color: #fff; }
 @media (max-width: 760px) {
   .tab { padding-left: 2px; padding-right: 2px; font-size: .68rem; letter-spacing: -.01em; overflow-wrap: normal; word-break: normal; hyphens: none; }
 }
+
+/* Data Warga: panel "Cari dan Urutkan Warga", kolom cari memanjang penuh */
+.wfilter { display: flex; flex-direction: column; gap: 14px; }
+.wfilter .wf-head { padding-bottom: 10px; border-bottom: 1px solid var(--line, #dbe6f5); }
+.wfilter .wf-head h2 { margin: 0 0 2px; font-size: 1.08rem; color: var(--blue-800, #1e4d8f); }
+.wfilter .wf-head .hint { margin: 0; }
+.wfilter .wf-search { width: 100%; }
+.wfilter .wf-search input { width: 100%; min-height: 46px; font-size: 1rem; }
+@media (max-width: 760px) {
+  .wfilter .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .wfilter .filters .field:first-child { grid-column: 1 / -1; }
+}

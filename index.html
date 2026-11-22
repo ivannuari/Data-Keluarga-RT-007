@@ -525,16 +525,20 @@
       </form>
     </section>
 
-    <section class="panel" aria-label="Filter warga">
+    <section class="panel wfilter" aria-labelledby="wf-title">
+      <div class="wf-head">
+        <h2 id="wf-title">Cari dan Urutkan Warga</h2>
+        <p class="hint">Cari nama atau saring daftar berdasarkan umur, gang, dan status.</p>
+      </div>
       <div class="field">
         <span class="fl" id="w-umur-lbl">Kelompok umur</span>
         <div class="agechips" id="w-agechips" role="group" aria-labelledby="w-umur-lbl"></div>
       </div>
+      <div class="field wf-search">
+        <label for="wf-q">Cari nama, telepon, atau nomor KK/KTP</label>
+        <input type="search" id="wf-q" placeholder="Ketik nama atau nomor...">
+      </div>
       <div class="filters">
-        <div class="field">
-          <label for="wf-q">Cari nama, telepon, atau nomor KK/KTP</label>
-          <input type="search" id="wf-q" placeholder="Ketik di sini">
-        </div>
         <div class="field">
           <label for="wf-min">Rentang umur (tahun)</label>
           <div class="range">
