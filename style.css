@@ -832,3 +832,33 @@ a.btn.adwa { color: #fff; }
   .wfilter .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .wfilter .filters .field:first-child { grid-column: 1 / -1; }
 }
+
+/* Program kerja RT (tab Laporan) */
+.progsec { margin-top: 36px; padding-top: 22px; border-top: 2px dashed var(--line, #cfdcf0); }
+#pr-list { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); margin-top: 10px; }
+#pr-list > .hint { grid-column: 1 / -1; }
+.prcard { background: #fff; border: 1px solid #dbe6f5; border-left: 5px solid #1e4d8f; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; box-shadow: 0 2px 10px rgba(30, 77, 143, .06); }
+.prcard.s-hold { border-left-color: #f28c28; }
+.prcard.s-selesai { border-left-color: #1f9d55; }
+.prcard.s-rencana { border-left-color: #7b8aa3; }
+.prcard.s-batal { border-left-color: #b8c2d1; opacity: .8; }
+.prtop { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.prtitle { margin: 0; font-size: 1.05rem; color: #1e3f73; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.prbadge { font-size: .74rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: #e3eefc; color: #1e4d8f; }
+.prbadge.s-hold { background: #fff0dc; color: #a35a05; }
+.prbadge.s-selesai { background: #dcf5e6; color: #146c3b; }
+.prbadge.s-rencana { background: #eceff4; color: #53627a; }
+.prbadge.s-batal { background: #eceff4; color: #6b7686; }
+.prdesc { margin: 0; color: #33445e; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.prprog { display: flex; align-items: center; gap: 10px; }
+.prbar { flex: 1; height: 14px; border-radius: 999px; background: #e6eef9; overflow: hidden; }
+.prfill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2f6fc4, #1e4d8f); }
+.prcard.s-hold .prfill { background: linear-gradient(90deg, #f7a74f, #f28c28); }
+.prcard.s-selesai .prfill { background: linear-gradient(90deg, #3cb871, #1f9d55); }
+.prcard.s-rencana .prfill, .prcard.s-batal .prfill { background: #9aa8bf; }
+.prpct { min-width: 3.2em; text-align: right; color: #1e3f73; font-size: 1rem; }
+.prnote { background: #fff6e8; border: 1px solid #f6d9ac; border-radius: 10px; padding: 9px 12px; }
+.prnote p { margin: 2px 0 0; color: #5a3b06; overflow-wrap: anywhere; white-space: pre-line; }
+.prnote-l { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #a35a05; }
+.prmeta { margin: 0; }
+#pr-progress { width: 100%; }

@@ -252,6 +252,66 @@
     <div class="actions" id="l-more-wrap" hidden>
       <button type="button" class="btn ghost" id="l-more">Tampilkan laporan yang lebih lama</button>
     </div>
+
+    <!-- Program kerja RT -->
+    <section class="progsec" id="prog" aria-labelledby="prog-title">
+      <div class="toolbar">
+        <div>
+          <h2 id="prog-title">Program kerja RT</h2>
+          <p class="hint">Program yang sedang dikerjakan pengurus: sudah sampai mana, dan apa kendalanya.</p>
+        </div>
+        <div class="group">
+          <button type="button" class="btn" id="btn-padd" hidden>Tambah program</button>
+        </div>
+      </div>
+      <div id="pr-error" class="notice err" hidden></div>
+
+      <section class="panel" id="prPanel" hidden aria-labelledby="prform-title">
+        <header><h2 id="prform-title">Tambah program</h2></header>
+        <form id="prform" novalidate autocomplete="off">
+          <div class="grid">
+            <div class="field wide">
+              <label for="pr-judul">Nama program</label>
+              <input type="text" id="pr-judul" maxlength="120" placeholder="Contoh: Perbaikan saluran air Gang Mawar">
+            </div>
+            <div class="field wide">
+              <label for="pr-ket">Keterangan</label>
+              <textarea id="pr-ket" maxlength="1500" rows="3" placeholder="Apa tujuan dan isi program ini."></textarea>
+            </div>
+            <div class="field">
+              <label for="pr-status">Status</label>
+              <select id="pr-status">
+                <option value="rencana">Direncanakan</option>
+                <option value="berjalan" selected>Sedang berjalan</option>
+                <option value="hold">Ditunda (hold)</option>
+                <option value="selesai">Selesai</option>
+                <option value="batal">Dibatalkan</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pr-target">Target selesai (boleh dikosongkan)</label>
+              <input type="date" id="pr-target">
+            </div>
+            <div class="field wide">
+              <label for="pr-progress">Progress: <output id="pr-pval" for="pr-progress">0%</output></label>
+              <input type="range" id="pr-progress" min="0" max="100" step="5" value="0">
+            </div>
+            <div class="field wide">
+              <label for="pr-kendala">Kendala atau catatan progress (boleh dikosongkan)</label>
+              <textarea id="pr-kendala" maxlength="600" rows="2" placeholder="Contoh: Menunggu bahan material, dana belum cukup, cuaca hujan."></textarea>
+            </div>
+          </div>
+          <div class="actions" style="margin-top: 16px;">
+            <button type="submit" class="btn" id="pr-submit">Simpan</button>
+            <button type="button" class="btn ghost" id="pr-cancel">Batal</button>
+            <span class="hint" id="pr-msg" role="status"></span>
+          </div>
+        </form>
+      </section>
+
+      <p class="hint" id="pr-summary"></p>
+      <div id="pr-list"></div>
+    </section>
   </section>
 
   <!-- ===== INFO PENTING ===== -->

@@ -630,7 +630,7 @@
     if (cur === "keuangan") renderFinance();
     else if (cur === "warga") renderWarga();
     else if (cur === "pengurus") renderPengurus();
-    else if (cur === "laporan") renderLaporan();
+    else if (cur === "laporan") { renderLaporan(); renderProgram(); }
     else if (cur === "ronda") renderRonda();
     else if (cur === "atur") renderAtur();
     else if (cur === "iklan") renderIklanAdmin();
@@ -2033,9 +2033,175 @@
     }
   }
 
-  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); loadRonda(); loadIklan(); }
+
+  // ======================================================================
+  // TAHAP 9: PROGRAM KERJA RT (tab Laporan, dikelola Ketua dan Wakil)
+  // ======================================================================
+  Object.assign(state, { prog: [], prLoaded: false, prError: null, prEdit: null, prConfirmDel: null, prSaving: false });
+  var PR_STATUS = {
+    rencana: "Direncanakan", berjalan: "Sedang berjalan", hold: "Ditunda (hold)", selesai: "Selesai", batal: "Dibatalkan"
+  };
+  var PR_ORDER = { berjalan: 0, hold: 1, rencana: 2, selesai: 3, batal: 4 };
+  async function loadProgram() {
+    if (!sb) return;
+    try {
+      state.prog = await fetchRows("program_kerja", function (q) { return q.order("updated_at", { ascending: false }); });
+      state.prError = null;
+    } catch (e) {
+      console.error("Gagal memuat program kerja:", e);
+      state.prError = e || {};
+    }
+    state.prLoaded = true;
+    renderAll();
+  }
+  function prSorted(list) {
+    return list.slice().sort(function (a, b) {
+      var d = (PR_ORDER[a.status] || 0) - (PR_ORDER[b.status] || 0);
+      return d || String(b.updated_at).localeCompare(String(a.updated_at));
+    });
+  }
+  function prErrText(e) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "42P01" || c === "PGRST205") return "Tabel program kerja belum dibuat. Jalankan supabase-tahap9.sql di SQL Editor Supabase.";
+    return "";
+  }
+  function prCard(p) {
+    var pct = Math.max(0, Math.min(100, Number(p.progress) || 0));
+    var st = PR_STATUS[p.status] ? p.status : "berjalan";
+    var bar = h("div", { class: "prbar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct), "aria-label": "Progress " + p.judul },
+      h("span", { class: "prfill", style: "width:" + pct + "%" }));
+    var meta = [];
+    if (p.target) meta.push("Target selesai: " + dateLabel(p.target));
+    if (p.updated_at) meta.push("Diperbarui: " + dateLabel(isoDate(new Date(p.updated_at))));
+    var act = null;
+    if (state.admin) {
+      act = h("div", { class: "rowact left" });
+      if (state.prConfirmDel === p.id) {
+        act.append(
+          h("button", { type: "button", class: "btn danger small", onclick: function () { deleteProgram(p); } }, "Ya, hapus"),
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { state.prConfirmDel = null; renderProgram(); } }, "Batal"));
+      } else {
+        act.append(
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { openPrForm(p); } }, "Ubah"),
+          h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.prConfirmDel = p.id; renderProgram(); } }, "Hapus"));
+      }
+    }
+    return h("article", { class: "prcard s-" + st },
+      h("div", { class: "prtop" },
+        h("h3", { class: "prtitle" }, p.judul),
+        h("span", { class: "prbadge s-" + st }, PR_STATUS[st])),
+      p.keterangan ? h("p", { class: "prdesc" }, p.keterangan) : null,
+      h("div", { class: "prprog" }, bar, h("strong", { class: "prpct" }, pct + "%")),
+      p.kendala ? h("div", { class: "prnote" }, h("span", { class: "prnote-l" }, st === "hold" ? "Alasan ditunda / kendala" : "Kendala / catatan"), h("p", {}, p.kendala)) : null,
+      meta.length ? h("p", { class: "prmeta hint" }, meta.join(" · ")) : null,
+      act);
+  }
+  function renderProgram() {
+    $("#btn-padd").hidden = !state.admin;
+    var err = $("#pr-error"), list = $("#pr-list"), sum = $("#pr-summary");
+    if (!state.admin && !$("#prPanel").hidden) { resetPrForm(); $("#prPanel").hidden = true; }
+    list.textContent = "";
+    if (state.prError) {
+      err.textContent = prErrText(state.prError) || ("Program kerja belum bisa dimuat. " + (state.prError.message ? "[" + state.prError.message + "]" : "Periksa koneksi internet."));
+      err.hidden = false; sum.textContent = ""; return;
+    }
+    err.hidden = true;
+    if (!state.prLoaded) { sum.textContent = "Memuat program kerja..."; return; }
+    var all = prSorted(state.prog);
+    if (!all.length) {
+      sum.textContent = "";
+      list.append(h("p", { class: "hint" }, state.admin ? "Belum ada program kerja. Klik Tambah program untuk menambahkan yang pertama." : "Belum ada program kerja yang dipublikasikan."));
+      return;
+    }
+    var cnt = {};
+    all.forEach(function (p) { cnt[p.status] = (cnt[p.status] || 0) + 1; });
+    sum.textContent = ["berjalan", "hold", "rencana", "selesai", "batal"].filter(function (k) { return cnt[k]; })
+      .map(function (k) { return cnt[k] + " " + PR_STATUS[k].toLowerCase(); }).join(" · ");
+    all.forEach(function (p) { list.append(prCard(p)); });
+  }
+  function resetPrForm() {
+    $("#prform").reset();
+    state.prEdit = null;
+    $("#prform-title").textContent = "Tambah program";
+    $("#pr-submit").textContent = "Simpan";
+    $("#pr-pval").textContent = "0%";
+  }
+  function openPrForm(p) {
+    resetPrForm();
+    $("#pr-msg").textContent = "";
+    state.prConfirmDel = null;
+    if (p) {
+      state.prEdit = p;
+      $("#prform-title").textContent = "Ubah program";
+      $("#pr-submit").textContent = "Simpan perubahan";
+      $("#pr-judul").value = p.judul || "";
+      $("#pr-ket").value = p.keterangan || "";
+      $("#pr-status").value = p.status || "berjalan";
+      $("#pr-target").value = p.target || "";
+      $("#pr-progress").value = String(p.progress || 0);
+      $("#pr-pval").textContent = (p.progress || 0) + "%";
+      $("#pr-kendala").value = p.kendala || "";
+    }
+    $("#prPanel").hidden = false;
+    renderProgram();
+    $("#prPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#pr-judul").focus();
+  }
+  function closePrForm() { resetPrForm(); $("#prPanel").hidden = true; $("#pr-msg").textContent = ""; renderProgram(); }
+  async function onProgramSubmit(ev) {
+    ev.preventDefault();
+    if (state.prSaving || !sb || !state.admin) return;
+    var msg = $("#pr-msg");
+    var judul = $("#pr-judul").value.trim().replace(/\s+/g, " ");
+    if (!judul) { msg.textContent = "Isi nama program."; return; }
+    var status = $("#pr-status").value;
+    var pct = parseInt($("#pr-progress").value, 10) || 0;
+    if (status === "selesai") pct = 100;
+    var row = {
+      judul: judul,
+      keterangan: $("#pr-ket").value.replace(/\r\n/g, "\n").trim(),
+      status: status,
+      progress: Math.max(0, Math.min(100, pct)),
+      kendala: $("#pr-kendala").value.replace(/\r\n/g, "\n").trim() || null,
+      target: $("#pr-target").value || null
+    };
+    state.prSaving = true;
+    var btn = $("#pr-submit");
+    btn.disabled = true; btn.textContent = "Menyimpan..."; msg.textContent = "";
+    try {
+      var ed = state.prEdit;
+      var r = ed ? await sb.from("program_kerja").update(row).eq("id", ed.id).select()
+                 : await sb.from("program_kerja").insert(row).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      var wasEdit = !!ed;
+      resetPrForm();
+      $("#prPanel").hidden = true;
+      flashTemp(wasEdit ? "Perubahan program tersimpan." : "Program ditambahkan.", "ok");
+      await loadProgram();
+    } catch (e) {
+      msg.textContent = prErrText(e) || errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      state.prSaving = false;
+      btn.disabled = false;
+      btn.textContent = state.prEdit ? "Simpan perubahan" : "Simpan";
+    }
+  }
+  async function deleteProgram(p) {
+    try {
+      var r = await sb.from("program_kerja").delete().eq("id", p.id).select("id");
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      state.prConfirmDel = null;
+      if (state.prEdit && state.prEdit.id === p.id) closePrForm();
+      flashTemp("Program dihapus.", "ok");
+      await loadProgram();
+    } catch (e) { flash(errText(e, "Gagal menghapus. Coba lagi."), "err"); }
+  }
+
+  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); loadRonda(); loadIklan(); loadProgram(); }
   function tahap3Idle() {
-    return $("#aPanel").hidden && $("#kPanel").hidden && $("#lPanel").hidden && !state.lSending && !state.pSaving && !state.kSaving && !state.lManage;
+    return $("#aPanel").hidden && $("#kPanel").hidden && $("#lPanel").hidden && $("#prPanel").hidden && !state.lSending && !state.pSaving && !state.kSaving && !state.prSaving && !state.lManage;
   }
 
   // ======================================================================
@@ -2974,6 +3140,13 @@
   $("#btn-wpdf").addEventListener("click", exportWargaPdf);
   $("#btn-wcsv").addEventListener("click", exportWargaCsv);
 
+  // program kerja
+  $("#btn-padd").addEventListener("click", function () { openPrForm(null); });
+  $("#prform").addEventListener("submit", onProgramSubmit);
+  $("#pr-cancel").addEventListener("click", closePrForm);
+  $("#pr-progress").addEventListener("input", function (e) { $("#pr-pval").textContent = e.target.value + "%"; });
+  $("#pr-status").addEventListener("change", function () { if ($("#pr-status").value === "selesai") { $("#pr-progress").value = "100"; $("#pr-pval").textContent = "100%"; } });
+
   // pengumuman, info penting, laporan
   $("#btn-aadd").addEventListener("click", function () { openAForm(null); });
   $("#aform").addEventListener("submit", onPengSubmit);
@@ -3030,6 +3203,7 @@
   resetKForm();
   resetLForm();
   resetIForm();
+  resetPrForm();
   renderAll();
 
   if (!sb) {
