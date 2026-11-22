@@ -751,7 +751,7 @@ a.btn.adwa { color: #fff; }
 .top {
   background:
     linear-gradient(90deg, rgba(255,255,255,.97) 0%, rgba(255,255,255,.9) 38%, rgba(255,255,255,.35) 72%, rgba(255,255,255,.12) 100%),
-    url("header-bg.png") right bottom / cover no-repeat,
+    url("header-bg.svg") right bottom / cover no-repeat,
     #ffffff;
   overflow: hidden;
   min-height: 132px;
@@ -765,4 +765,58 @@ a.btn.adwa { color: #fff; }
       url("header-bg.svg") right bottom / cover no-repeat,
       #ffffff;
   }
+}
+
+/* ==========================================================
+   Menu tab beride ikon, pengumuman penting, tombol bagikan ikon
+   ========================================================== */
+.tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; overflow-x: visible; }
+.tab { display: inline-flex; align-items: center; gap: 8px; }
+.tico { display: inline-grid; place-items: center; }
+.tico svg { width: 18px; height: 18px; }
+@media (max-width: 760px) {
+  .tabs { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; padding: 8px; }
+  .tab {
+    flex-direction: column; justify-content: center; gap: 5px; min-height: 64px; padding: 9px 3px;
+    font-size: .74rem; line-height: 1.15; text-align: center; white-space: normal; overflow-wrap: anywhere;
+    background: #ffffff; border: 1px solid #d5e2f1; border-radius: 12px; color: var(--blue-900);
+    box-shadow: 0 2px 6px rgba(25,65,112,.06);
+  }
+  .tab:hover { background: #ffffff; }
+  .tab[aria-selected="true"] { background: var(--blue-800); border-color: var(--blue-800); color: #fff; box-shadow: 0 4px 12px rgba(29,79,145,.28); }
+  .tico svg { width: 23px; height: 23px; }
+}
+
+/* Pengumuman penting: pita berwarna dengan ikon, dibedakan dari kartu berita */
+.pin {
+  padding: 0; overflow: hidden; background: #ffffff; color: var(--blue-950);
+  border: 2px solid #e8741f; border-left-width: 2px; border-radius: 16px;
+  box-shadow: 0 10px 26px rgba(232,116,31,.18);
+}
+.pinhead {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 16px; background: linear-gradient(90deg, #e8590c, #f28a32);
+}
+.pinlabel { display: inline-flex; align-items: center; gap: 8px; color: #ffffff; font-size: .78rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.pinico { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,.22); }
+.pinico svg { width: 17px; height: 17px; }
+.pinwhen { background: #ffffff; color: #c24a08; font-weight: 800; }
+.pinwhen.today { background: #fff; color: #c42f2f; }
+.pinbody { padding: 16px 18px 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; min-width: 0; }
+.pintitle { font-size: 1.28rem; color: var(--blue-950); }
+.pintext.clamp { display: -webkit-box; -webkit-line-clamp: 5; line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.pin .linkbtn.more { padding-left: 0; }
+.pinfoot { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pinico { animation: pinring 2.6s ease-in-out 1s 2; transform-origin: 50% 12%; }
+  @keyframes pinring { 0%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } 50% { transform: rotate(0); } }
+}
+
+/* Tombol bagikan WhatsApp: ikon kecil */
+.iconbtn.mini { width: 36px; height: 36px; }
+.iconbtn.mini .ico svg { width: 18px; height: 18px; }
+.iconbtn.wa.share { box-shadow: 0 3px 8px rgba(31,168,85,.22); }
+@media (max-width: 560px) { .pintext.clamp { -webkit-line-clamp: 4; line-clamp: 4; } }
+@media (max-width: 760px) {
+  .tab { padding-left: 2px; padding-right: 2px; font-size: .68rem; letter-spacing: -.01em; overflow-wrap: normal; word-break: normal; hyphens: none; }
 }

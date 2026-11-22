@@ -595,14 +595,30 @@
     var t = (location.hash || "").slice(1);
     return tabsFor().some(function (x) { return x.id === t; }) ? t : "beranda";
   }
+  var TICO = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">' + d + '</svg>'; };
+  var TAB_ICONS = {
+    beranda: TICO('<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/>'),
+    laporan: TICO('<path d="M9 4h6l1 2h3v14H5V6h3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>'),
+    ronda: TICO('<path d="M12 3 5 6v5.5c0 4.2 2.8 7.6 7 9 4.2-1.4 7-4.8 7-9V6z"/><path d="m9 12 2 2 4-4"/>'),
+    info: TICO('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>'),
+    keuangan: TICO('<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/><path d="M16 13.5h.01"/>'),
+    warga: TICO('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6"/><path d="M17.5 14.7c2.2.5 3.5 2.3 3.5 5.3"/>'),
+    atur: TICO('<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="M8 14h3M13 14h3M8 17h3"/>'),
+    iklan: TICO('<path d="M3 11v2a1 1 0 0 0 1 1h3l8 4.5V5.5L7 10H4a1 1 0 0 0-1 1z"/><path d="M19 9a4 4 0 0 1 0 6"/>'),
+    pengurus: TICO('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/><path d="m16.5 3.5.7 1.4 1.5.2-1.1 1.1.3 1.5-1.4-.7-1.4.7.3-1.5-1.1-1.1 1.5-.2z" fill="currentColor" stroke="none"/>')
+  };
   function renderTabs(cur) {
     var nav = $("#tabs");
     nav.textContent = "";
-    tabsFor().forEach(function (t) {
+    var list = tabsFor();
+    nav.style.setProperty("--cols", String(list.length <= 5 ? list.length : Math.ceil(list.length / 2)));
+    list.forEach(function (t) {
+      var ico = h("span", { class: "tico", "aria-hidden": "true" });
+      ico.innerHTML = TAB_ICONS[t.id] || "";
       nav.append(h("button", {
         type: "button", class: "tab", role: "tab", "aria-selected": String(t.id === cur),
         onclick: function () { if (location.hash === "#" + t.id) renderAll(); else location.hash = t.id; }
-      }, t.label));
+      }, ico, h("span", { class: "tlabel" }, t.label)));
     });
   }
   function renderAll() {
@@ -684,10 +700,14 @@
     return (i > max * 0.6 ? c.slice(0, i) : c).trim() + "...";
   }
   function waShareLink(text, label) {
-    return h("a", {
-      class: "btn ghost small share", href: "https://wa.me/?text=" + encodeURIComponent(text),
-      target: "_blank", rel: "noopener", "aria-label": label
-    }, "Bagikan ke WhatsApp");
+    var a = h("a", {
+      class: "iconbtn wa mini share", href: "https://wa.me/?text=" + encodeURIComponent(text),
+      target: "_blank", rel: "noopener", "aria-label": label, title: "Bagikan ke WhatsApp"
+    });
+    var s = h("span", { class: "ico", "aria-hidden": "true" });
+    s.innerHTML = ICON_WA;
+    a.append(s);
+    return a;
   }
   function beritaShareText(b) {
     var parts = ["*" + waClean(b.judul) + "*", longDate(b.tanggal)];
@@ -1395,16 +1415,30 @@
     [["Tanggal", p.acara_tanggal ? longDate(p.acara_tanggal) : ""], ["Jam", p.acara_jam], ["Tempat", p.tempat]].forEach(function (kv) {
       if (kv[1]) meta.append(h("div", {}, h("dt", {}, kv[0]), h("dd", {}, kv[1])));
     });
+    var ico = h("span", { class: "pinico", "aria-hidden": "true" });
+    ico.innerHTML = TAB_ICONS.iklan;
+    var long = p.isi && p.isi.length > 220;
+    var txt = p.isi ? h("p", { class: "pintext" + (long ? " clamp" : "") }, p.isi) : null;
+    var more = null;
+    if (long) {
+      more = h("button", { type: "button", class: "linkbtn more", "aria-expanded": "false" }, "Baca selengkapnya");
+      more.addEventListener("click", function () {
+        var open = txt.classList.toggle("clamp") === false;
+        more.textContent = open ? "Tutup" : "Baca selengkapnya";
+        more.setAttribute("aria-expanded", String(open));
+      });
+    }
     return h("article", { class: "pin" },
       h("div", { class: "pinhead" },
-        h("span", { class: "pinlabel" }, "Pengumuman"),
+        h("span", { class: "pinlabel" }, ico, "Pengumuman penting"),
         when ? h("span", { class: "pinwhen" + (n === 0 ? " today" : "") }, when) : null),
-      h("h2", { class: "pintitle" }, p.judul),
-      meta.children.length ? meta : null,
-      p.isi ? h("p", { class: "pintext" }, p.isi) : null,
-      h("div", { class: "pinfoot" },
-        waShareLink(pengShareText(p), "Bagikan pengumuman ke WhatsApp: " + p.judul),
-        p.oleh_label ? h("span", { class: "pinby" }, "Diumumkan oleh " + p.oleh_label) : null));
+      h("div", { class: "pinbody" },
+        h("h2", { class: "pintitle" }, p.judul),
+        meta.children.length ? meta : null,
+        txt, more,
+        h("div", { class: "pinfoot" },
+          waShareLink(pengShareText(p), "Bagikan pengumuman ke WhatsApp: " + p.judul),
+          p.oleh_label ? h("span", { class: "pinby" }, "Diumumkan oleh " + p.oleh_label) : null)));
   }
   function renderPinned() {
     var box = $("#pinned");
