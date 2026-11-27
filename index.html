@@ -690,6 +690,56 @@
     <div id="r-grid" class="rgrid"></div>
   </section>
 
+  <!-- ===== INVENTARIS (semua orang melihat; pengurus mengubah) ===== -->
+  <section class="tabpanel" id="tab-inventaris" role="tabpanel" hidden>
+    <div class="toolbar">
+      <div>
+        <h2>Inventaris RT</h2>
+        <p class="hint">Daftar barang milik RT, jumlahnya, dan di mana barang itu disimpan.</p>
+      </div>
+      <div class="group">
+        <button type="button" class="btn" id="btn-ivadd" hidden>Tambah barang</button>
+      </div>
+    </div>
+    <div id="iv-error" class="notice err" hidden></div>
+
+    <section class="panel" id="ivPanel" hidden aria-labelledby="ivform-title">
+      <header><h2 id="ivform-title">Tambah barang</h2></header>
+      <form id="ivform" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field wide">
+            <label for="iv-nama">Nama barang</label>
+            <input type="text" id="iv-nama" maxlength="120" placeholder="Contoh: Kursi plastik">
+          </div>
+          <div class="field">
+            <label for="iv-jumlah">Jumlah</label>
+            <input type="number" id="iv-jumlah" min="0" max="100000" step="1" inputmode="numeric" value="1">
+          </div>
+          <div class="field">
+            <label for="iv-satuan">Satuan (boleh dikosongkan)</label>
+            <input type="text" id="iv-satuan" maxlength="30" placeholder="buah, set, unit, lembar">
+          </div>
+          <div class="field wide">
+            <label for="iv-lokasi">Lokasi penyimpanan terakhir</label>
+            <input type="text" id="iv-lokasi" maxlength="200" placeholder="Contoh: Pos ronda, lemari bawah">
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 16px;">
+          <button type="submit" class="btn" id="iv-submit">Simpan</button>
+          <button type="button" class="btn ghost" id="iv-cancel">Batal</button>
+          <span class="hint" id="iv-msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <div class="field ivsearch">
+      <label for="iv-q">Cari barang atau lokasi</label>
+      <input type="search" id="iv-q" placeholder="Ketik nama barang atau lokasi...">
+    </div>
+    <p class="hint" id="iv-summary"></p>
+    <div id="iv-list" class="ivlist"></div>
+  </section>
+
   <!-- ===== ATUR RONDA (Ketua dan Wakil) ===== -->
   <section class="tabpanel" id="tab-atur" role="tabpanel" hidden>
     <div class="toolbar">

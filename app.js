@@ -585,6 +585,7 @@
     { id: "ronda", label: "Ronda" },
     { id: "info", label: "Info Penting" },
     { id: "keuangan", label: "Keuangan" },
+    { id: "inventaris", label: "Inventaris" },
     { id: "warga", label: "Data Warga", staff: true },
     { id: "atur", label: "Atur Ronda", admin: true },
     { id: "iklan", label: "Iklan", admin: true },
@@ -603,6 +604,7 @@
     info: TICO('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>'),
     keuangan: TICO('<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/><path d="M16 13.5h.01"/>'),
     warga: TICO('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6"/><path d="M17.5 14.7c2.2.5 3.5 2.3 3.5 5.3"/>'),
+    inventaris: TICO('<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5"/><path d="M12 12v9"/>'),
     atur: TICO('<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="M8 14h3M13 14h3M8 17h3"/>'),
     iklan: TICO('<path d="M3 11v2a1 1 0 0 0 1 1h3l8 4.5V5.5L7 10H4a1 1 0 0 0-1 1z"/><path d="M19 9a4 4 0 0 1 0 6"/>'),
     pengurus: TICO('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/><path d="m16.5 3.5.7 1.4 1.5.2-1.1 1.1.3 1.5-1.4-.7-1.4.7.3-1.5-1.1-1.1 1.5-.2z" fill="currentColor" stroke="none"/>')
@@ -632,6 +634,7 @@
     else if (cur === "pengurus") renderPengurus();
     else if (cur === "laporan") { renderLaporan(); renderProgram(); }
     else if (cur === "ronda") renderRonda();
+    else if (cur === "inventaris") renderInventaris();
     else if (cur === "atur") renderAtur();
     else if (cur === "iklan") renderIklanAdmin();
     else if (cur === "info") { renderInfo(); renderInfoAds(); }
@@ -2199,9 +2202,147 @@
     } catch (e) { flash(errText(e, "Gagal menghapus. Coba lagi."), "err"); }
   }
 
-  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); loadRonda(); loadIklan(); loadProgram(); }
+
+  // ======================================================================
+  // TAHAP 10: INVENTARIS RT (semua melihat; pengurus + PIC mengubah)
+  // ======================================================================
+  Object.assign(state, { inv: [], invLoaded: false, invError: null, invEdit: null, invConfirmDel: null, invSaving: false, invQ: "" });
+  async function loadInventaris() {
+    if (!sb) return;
+    try {
+      state.inv = await fetchRows("inventaris", function (q) { return q.order("nama", { ascending: true }); });
+      state.invError = null;
+    } catch (e) {
+      console.error("Gagal memuat inventaris:", e);
+      state.invError = e || {};
+    }
+    state.invLoaded = true;
+    renderAll();
+  }
+  function ivErrText(e) {
+    var c = e && e.code ? String(e.code) : "";
+    if (c === "42P01" || c === "PGRST205") return "Tabel inventaris belum dibuat. Jalankan supabase-tahap10.sql di SQL Editor Supabase.";
+    return "";
+  }
+  function ivRow(it) {
+    var qty = String(it.jumlah) + (it.satuan ? " " + it.satuan : "");
+    var act = null;
+    if (state.staff) {
+      act = h("div", { class: "rowact ivact" });
+      if (state.invConfirmDel === it.id) {
+        act.append(
+          h("button", { type: "button", class: "btn danger small", onclick: function () { deleteInventaris(it); } }, "Ya, hapus"),
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { state.invConfirmDel = null; renderInventaris(); } }, "Batal"));
+      } else {
+        act.append(
+          h("button", { type: "button", class: "btn ghost small", onclick: function () { openIvForm(it); } }, "Ubah"),
+          h("button", { type: "button", class: "btn danger ghost small", onclick: function () { state.invConfirmDel = it.id; renderInventaris(); } }, "Hapus"));
+      }
+    }
+    return h("article", { class: "ivrow" + (Number(it.jumlah) === 0 ? " zero" : "") },
+      h("div", { class: "ivc ivname", "data-l": "Barang" }, it.nama),
+      h("div", { class: "ivc ivqty", "data-l": "Jumlah" }, h("span", { class: "chip" }, qty)),
+      h("div", { class: "ivc ivloc", "data-l": "Disimpan di" }, it.lokasi || "-"),
+      h("div", { class: "ivc ivwhen", "data-l": "Diperbarui" }, it.updated_at ? dateLabel(isoDate(new Date(it.updated_at))) : "-"),
+      act ? h("div", { class: "ivc ivactc" }, act) : null);
+  }
+  function renderInventaris() {
+    $("#btn-ivadd").hidden = !state.staff;
+    var err = $("#iv-error"), list = $("#iv-list"), sum = $("#iv-summary");
+    if (!state.staff && !$("#ivPanel").hidden) { resetIvForm(); $("#ivPanel").hidden = true; }
+    list.textContent = "";
+    if (state.invError) {
+      err.textContent = ivErrText(state.invError) || ("Inventaris belum bisa dimuat. " + (state.invError.message ? "[" + state.invError.message + "]" : "Periksa koneksi internet."));
+      err.hidden = false; sum.textContent = ""; return;
+    }
+    err.hidden = true;
+    if (!state.invLoaded) { sum.textContent = "Memuat inventaris..."; return; }
+    var q = state.invQ.trim().toLowerCase();
+    var all = state.inv.slice().sort(function (a, b) { return ncmp(a.nama, b.nama); });
+    var shown = q ? all.filter(function (it) { return (it.nama + " " + (it.lokasi || "")).toLowerCase().indexOf(q) >= 0; }) : all;
+    if (!all.length) {
+      sum.textContent = "";
+      list.append(h("p", { class: "hint" }, state.staff ? "Belum ada barang. Klik Tambah barang untuk menambahkan yang pertama." : "Belum ada data inventaris."));
+      return;
+    }
+    sum.textContent = q ? shown.length + " dari " + all.length + " jenis barang cocok" : all.length + " jenis barang";
+    if (!shown.length) { list.append(h("p", { class: "hint" }, "Tidak ada barang yang cocok dengan pencarian.")); return; }
+    list.append(h("div", { class: "ivhead", "aria-hidden": "true" },
+      h("span", {}, "Barang"), h("span", {}, "Jumlah"), h("span", {}, "Disimpan di"), h("span", {}, "Diperbarui"), h("span", {}, "")));
+    shown.forEach(function (it) { list.append(ivRow(it)); });
+  }
+  function resetIvForm() {
+    $("#ivform").reset();
+    state.invEdit = null;
+    $("#ivform-title").textContent = "Tambah barang";
+    $("#iv-submit").textContent = "Simpan";
+  }
+  function openIvForm(it) {
+    resetIvForm();
+    $("#iv-msg").textContent = "";
+    state.invConfirmDel = null;
+    if (it) {
+      state.invEdit = it;
+      $("#ivform-title").textContent = "Ubah barang";
+      $("#iv-submit").textContent = "Simpan perubahan";
+      $("#iv-nama").value = it.nama || "";
+      $("#iv-jumlah").value = String(it.jumlah);
+      $("#iv-satuan").value = it.satuan || "";
+      $("#iv-lokasi").value = it.lokasi || "";
+    }
+    $("#ivPanel").hidden = false;
+    renderInventaris();
+    $("#ivPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#iv-nama").focus();
+  }
+  function closeIvForm() { resetIvForm(); $("#ivPanel").hidden = true; $("#iv-msg").textContent = ""; renderInventaris(); }
+  async function onInventarisSubmit(ev) {
+    ev.preventDefault();
+    if (state.invSaving || !sb || !state.staff) return;
+    var msg = $("#iv-msg");
+    var nama = $("#iv-nama").value.trim().replace(/\s+/g, " ");
+    if (!nama) { msg.textContent = "Isi nama barang."; return; }
+    var raw = $("#iv-jumlah").value.trim();
+    var jml = Number(raw);
+    if (raw === "" || !isFinite(jml) || jml < 0 || jml > 100000 || Math.floor(jml) !== jml) { msg.textContent = "Jumlah harus bilangan bulat 0 sampai 100000."; return; }
+    var row = { nama: nama, jumlah: jml, satuan: $("#iv-satuan").value.trim().replace(/\s+/g, " "), lokasi: $("#iv-lokasi").value.trim().replace(/\s+/g, " ") };
+    state.invSaving = true;
+    var btn = $("#iv-submit");
+    btn.disabled = true; btn.textContent = "Menyimpan..."; msg.textContent = "";
+    try {
+      var ed = state.invEdit;
+      var r = ed ? await sb.from("inventaris").update(row).eq("id", ed.id).select()
+                 : await sb.from("inventaris").insert(row).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      var wasEdit = !!ed;
+      resetIvForm();
+      $("#ivPanel").hidden = true;
+      flashTemp(wasEdit ? "Perubahan barang tersimpan." : "Barang ditambahkan.", "ok");
+      await loadInventaris();
+    } catch (e) {
+      msg.textContent = ivErrText(e) || errText(e, "Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      state.invSaving = false;
+      btn.disabled = false;
+      btn.textContent = state.invEdit ? "Simpan perubahan" : "Simpan";
+    }
+  }
+  async function deleteInventaris(it) {
+    try {
+      var r = await sb.from("inventaris").delete().eq("id", it.id).select("id");
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw { code: "42501" };
+      state.invConfirmDel = null;
+      if (state.invEdit && state.invEdit.id === it.id) closeIvForm();
+      flashTemp("Barang dihapus.", "ok");
+      await loadInventaris();
+    } catch (e) { flash(errText(e, "Gagal menghapus. Coba lagi."), "err"); }
+  }
+
+  function loadTahap3() { loadPengumuman(); loadKontak(); loadLaporan(); loadRonda(); loadIklan(); loadProgram(); loadInventaris(); }
   function tahap3Idle() {
-    return $("#aPanel").hidden && $("#kPanel").hidden && $("#lPanel").hidden && $("#prPanel").hidden && !state.lSending && !state.pSaving && !state.kSaving && !state.prSaving && !state.lManage;
+    return $("#aPanel").hidden && $("#kPanel").hidden && $("#lPanel").hidden && $("#prPanel").hidden && $("#ivPanel").hidden && !state.invSaving && !state.lSending && !state.pSaving && !state.kSaving && !state.prSaving && !state.lManage;
   }
 
   // ======================================================================
@@ -3140,6 +3281,12 @@
   $("#btn-wpdf").addEventListener("click", exportWargaPdf);
   $("#btn-wcsv").addEventListener("click", exportWargaCsv);
 
+  // inventaris
+  $("#btn-ivadd").addEventListener("click", function () { openIvForm(null); });
+  $("#ivform").addEventListener("submit", onInventarisSubmit);
+  $("#iv-cancel").addEventListener("click", closeIvForm);
+  $("#iv-q").addEventListener("input", function (e) { state.invQ = e.target.value; renderInventaris(); });
+
   // program kerja
   $("#btn-padd").addEventListener("click", function () { openPrForm(null); });
   $("#prform").addEventListener("submit", onProgramSubmit);
@@ -3204,6 +3351,7 @@
   resetLForm();
   resetIForm();
   resetPrForm();
+  resetIvForm();
   renderAll();
 
   if (!sb) {

@@ -869,3 +869,29 @@ a.btn.adwa { color: #fff; }
   .board > .bcol.unassigned { grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
   .board > .bcol:not(.unassigned) { min-height: 150px; }
 }
+
+/* Inventaris RT */
+.ivsearch { max-width: 520px; margin: 14px 0 6px; }
+.ivlist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.ivlist > .hint { margin: 6px 0; }
+.ivhead, .ivrow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(90px, .8fr) minmax(0, 2fr) 120px auto; gap: 14px; align-items: center; }
+.ivhead { padding: 0 16px; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #5b6e8c; }
+.ivrow { background: #fff; border: 1px solid #dbe6f5; border-radius: 12px; padding: 12px 16px; box-shadow: 0 1px 6px rgba(30, 77, 143, .05); }
+.ivc { min-width: 0; overflow-wrap: anywhere; }
+.ivname { font-weight: 700; color: #1e3f73; }
+.ivqty .chip { font-weight: 700; background: #e3eefc; color: #1e4d8f; white-space: nowrap; }
+.ivrow.zero .ivqty .chip { background: #fde8e8; color: #a32424; }
+.ivrow.zero .ivname { color: #6b7686; }
+.ivloc { color: #33445e; }
+.ivwhen { color: #5b6e8c; font-size: .86rem; }
+.ivact { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 760px) {
+  .ivhead { display: none; }
+  .ivrow { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 14px; }
+  .ivrow .ivname { grid-column: 1; font-size: 1.02rem; }
+  .ivrow .ivqty { grid-column: 2; grid-row: 1; }
+  .ivrow .ivloc, .ivrow .ivwhen { grid-column: 1 / -1; }
+  .ivrow .ivloc::before, .ivrow .ivwhen::before { content: attr(data-l) ": "; color: #5b6e8c; font-weight: 600; font-size: .82rem; }
+  .ivrow .ivactc { grid-column: 1 / -1; }
+  .ivact { justify-content: flex-start; }
+}
